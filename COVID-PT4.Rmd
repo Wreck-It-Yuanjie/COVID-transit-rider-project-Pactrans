@@ -1,0 +1,2856 @@
+---
+title: "COVID-PT"
+author: "Tukey Tu"
+date: "10/4/2020"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# UNDERSTANDING THE IMPACT OF A PANDEMIC ON PUBLIC TRANSIT USE PATTERNS
+
+## import libraries
+```{r echo = TRUE}
+library(MASS)
+library(lme4)
+library(ggplot2)
+library(psych)
+library(dplyr)
+library(MRCE)
+library(car)
+library(tidyverse)
+library(ggpubr)
+library(compare)
+library(tibble)
+library(tidyr)
+library(gridExtra)
+library(factoextra)
+library(NbClust)
+library(MASS)
+library(Rmisc)
+```
+
+## set working space & Read the file
+```{r}
+setwd("/Volumes/GoogleDrive/My Drive/2020FallUW/COVID19-Paper")
+
+COVIDreadin <- read.csv("cleaned_data.csv", header = TRUE, sep = ",")
+```
+
+## data preprocessing: select desired data columns and rename the attributes
+```{r echo = FALSE}
+## Data pre-processing
+## Add an ID column
+COVIDreadin$ID <- 1:nrow(COVIDreadin)
+## Rename colnames
+names(COVIDreadin)[names(COVIDreadin) == "Did.you.use.to.work.from.home.before.the.COVID.19.outbreak."] <- "WFH before"
+names(COVIDreadin)[names(COVIDreadin) == "What.time.did.you.usually.leave.for.work.school.before.the.COVID.19.outbreak."] <- "Time leave for work before"
+names(COVIDreadin)[names(COVIDreadin) == "Which.of.the.following.best.describes.your.current.job.situation."] <- "Job"
+names(COVIDreadin)[names(COVIDreadin) == "What.is.your.gender."] <- "Gender"
+names(COVIDreadin)[names(COVIDreadin) == "What.is.your.home.ZIP.code."] <- "Home"
+names(COVIDreadin)[names(COVIDreadin) == "What.is.your.annual.household.income.level.."] <- "Income"
+names(COVIDreadin)[names(COVIDreadin) == "What.is.your.age."] <- "Age"
+names(COVIDreadin)[names(COVIDreadin) == "What.is.your.race."] <- "Race"
+names(COVIDreadin)[names(COVIDreadin) == "What.is.the.highest.degree.or.level.of.school.you.have.completed."] <- "Education"
+names(COVIDreadin)[names(COVIDreadin) == "Are.you.employed.in.one.of.the.following.industries."] <- "Occupation"
+names(COVIDreadin)[names(COVIDreadin) == "Have.you.had.COVID.19."] <- "COVID"
+names(COVIDreadin)[names(COVIDreadin) == "In.a.typical.month.BEFORE.the.outbreak..e.g..in.January...how.often.did.you.use.the.following.modes.of.transportation...Public.Transit..Bus..Light.Rail..Streetcar.."] <- "Transit0"
+names(COVIDreadin)[names(COVIDreadin) == "In.the.past.month..i.e..DURING.the.outbreak...how.often.did.you.use.the.following.modes.of.transportation...Public.Transit..Bus..Light.Rail..Streetcar.."] <- "Transit1"
+names(COVIDreadin)[names(COVIDreadin) == "Sometime.in.the.future..when.COVID.19.will.no.longer.be.a.threat..how.often.do.you.think.you.will.use.the.following.modes.of.transportation...Public.Transit..Bus..Light.Rail..Streetcar.."] <- "Transit2"
+names(COVIDreadin)[names(COVIDreadin) == "How.long..i.e..how.many.miles..was.your.commute.to.work.school.before.the.COVID.19.outbreak.."] <- "Commuting Distance0"
+names(COVIDreadin)[names(COVIDreadin) == "In.a.typical.month.BEFORE.the.outbreak..e.g..in.January...how.often.did.you......work.from.home.."] <- "WFH frequency0"
+names(COVIDreadin)[names(COVIDreadin) == "In.a.typical.month.BEFORE.the.outbreak..e.g..in.January...how.often.did.you......shop.in.stores.for.groceries.."] <- "In-store grocery shopping frequency0"
+names(COVIDreadin)[names(COVIDreadin) == "In.a.typical.month.BEFORE.the.outbreak..e.g..in.January...how.often.did.you......order.groceries.online.for.pick.up.delivery.."] <- "Online grocery shopping frequency0"
+names(COVIDreadin)[names(COVIDreadin) == "In.a.typical.month.BEFORE.the.outbreak..e.g..in.January...how.often.did.you......order.other.items.online.for.pick.up.delivery.."] <- "Online other-purpose shopping frequency0"
+names(COVIDreadin)[names(COVIDreadin) == "In.a.typical.month.BEFORE.the.outbreak..e.g..in.January...how.often.did.you......shop.in.stores.for.other.items.."] <- "In-person other-purpose shopping frequency0"
+names(COVIDreadin)[names(COVIDreadin) == "In.a.typical.month.BEFORE.the.outbreak..e.g..in.January...how.often.did.you......eat.a.meal.in.a.restaurant.."] <- "In-person restaurant0"
+names(COVIDreadin)[names(COVIDreadin) == "In.a.typical.month.BEFORE.the.outbreak..e.g..in.January...how.often.did.you......order.food.for.pick.up.delivery.from.a.restaurant.."] <- "Online restaurant0"
+names(COVIDreadin)[names(COVIDreadin) == "In.a.typical.month.BEFORE.the.outbreak..e.g..in.January...how.often.did.you.use.the.following.modes.of.transportation...Drive.alone."] <- "Drivealone0"
+names(COVIDreadin)[names(COVIDreadin) == "In.a.typical.month.BEFORE.the.outbreak..e.g..in.January...how.often.did.you.use.the.following.modes.of.transportation...Carpool."] <- "Carpool0"
+names(COVIDreadin)[names(COVIDreadin) == "In.a.typical.month.BEFORE.the.outbreak..e.g..in.January...how.often.did.you.use.the.following.modes.of.transportation...Ferry.or.Water.Taxi."] <- "Water0"
+names(COVIDreadin)[names(COVIDreadin) == "In.a.typical.month.BEFORE.the.outbreak..e.g..in.January...how.often.did.you.use.the.following.modes.of.transportation...Solo.Ridehail..UberX..Lyft..or.Taxi."] <- "SoloRidehail0"
+names(COVIDreadin)[names(COVIDreadin) == "In.a.typical.month.BEFORE.the.outbreak..e.g..in.January...how.often.did.you.use.the.following.modes.of.transportation...Shared.Ridehail..e.g..UberPool..Lyft.Shared.."] <- "SharedRidehail0"
+names(COVIDreadin)[names(COVIDreadin) == "In.a.typical.month.BEFORE.the.outbreak..e.g..in.January...how.often.did.you.use.the.following.modes.of.transportation...Bike.or.Scooter."] <- "PrivateBike/Scooter0"
+names(COVIDreadin)[names(COVIDreadin) == "In.a.typical.month.BEFORE.the.outbreak..e.g..in.January...how.often.did.you.use.the.following.modes.of.transportation...Shared.bike.or.scooter..Lime..JUMP..etc..."] <- "SharedBike/Scooter0"
+names(COVIDreadin)[names(COVIDreadin) == "In.a.typical.month.BEFORE.the.outbreak..e.g..in.January...how.often.did.you.use.the.following.modes.of.transportation...Walk."] <- "Walk0"
+names(COVIDreadin)[names(COVIDreadin) == "In.a.typical.month.BEFORE.the.outbreak..e.g..in.January...what.mode.of.transportation.did.you.generally.use.for.the.following.purposes...Work.School."] <- "TravelModeWork0"
+names(COVIDreadin)[names(COVIDreadin) == "In.a.typical.month.BEFORE.the.outbreak..e.g..in.January...what.mode.of.transportation.did.you.generally.use.for.the.following.purposes...Grocery.Shopping."] <- "TravelModeGrocery0"
+names(COVIDreadin)[names(COVIDreadin) == "In.a.typical.month.BEFORE.the.outbreak..e.g..in.January...what.mode.of.transportation.did.you.generally.use.for.the.following.purposes...Other.Shopping."] <- "TravelModeOtherShopping0"
+names(COVIDreadin)[names(COVIDreadin) == "In.a.typical.month.BEFORE.the.outbreak..e.g..in.January...what.mode.of.transportation.did.you.generally.use.for.the.following.purposes...Errands..e.g..bank..doctor.appointment.."] <- "TravelModeErrands0"
+names(COVIDreadin)[names(COVIDreadin) == "In.a.typical.month.BEFORE.the.outbreak..e.g..in.January...what.mode.of.transportation.did.you.generally.use.for.the.following.purposes...Social..Meal.or.Recreation."] <- "TravelModeSocial0"
+names(COVIDreadin)[names(COVIDreadin) == "In.the.past.month..i.e..DURING.the.outbreak...how.often.did.you......order.groceries.online.for.pick.up.delivery.."] <- "Online grocery shopping frequency1"
+names(COVIDreadin)[names(COVIDreadin) == "In.the.past.month..i.e..DURING.the.outbreak...how.often.did.you......work.from.home.."] <- "WFH frequency1"
+names(COVIDreadin)[names(COVIDreadin) == "In.the.past.month..i.e..DURING.the.outbreak...how.often.did.you......shop.in.stores.for.groceries.."] <- "In-store grocery shopping frequency1"
+names(COVIDreadin)[names(COVIDreadin) == "In.the.past.month..i.e..DURING.the.outbreak...how.often.did.you......shop.in.stores.for.other.items.."] <- "In-person other-purpose shopping frequency1"
+names(COVIDreadin)[names(COVIDreadin) == "In.the.past.month..i.e..DURING.the.outbreak...how.often.did.you......order.other.items.online.for.pick.up.delivery.."] <- "Online other-purpose shopping frequency1"
+names(COVIDreadin)[names(COVIDreadin) == "In.the.past.month..i.e..DURING.the.outbreak...how.often.did.you......eat.a.meal.in.a.restaurant.."] <- "In-person restaurant1"
+names(COVIDreadin)[names(COVIDreadin) == "In.the.past.month..i.e..DURING.the.outbreak...how.often.did.you......order.food.for.pick.up.delivery.from.a.restaurant.."] <- "Online restaurant1"
+names(COVIDreadin)[names(COVIDreadin) == "In.the.past.month..i.e..DURING.the.outbreak...how.often.did.you.use.the.following.modes.of.transportation...Drive.Alone."] <- "Drivealone1"
+names(COVIDreadin)[names(COVIDreadin) == "In.the.past.month..i.e..DURING.the.outbreak...how.often.did.you.use.the.following.modes.of.transportation...Carpool."] <- "Carpool1"
+names(COVIDreadin)[names(COVIDreadin) == "In.the.past.month..i.e..DURING.the.outbreak...how.often.did.you.use.the.following.modes.of.transportation...Ferry.or.Water.Taxi."] <- "Water1"
+names(COVIDreadin)[names(COVIDreadin) == "In.the.past.month..i.e..DURING.the.outbreak...how.often.did.you.use.the.following.modes.of.transportation...Solo.Ridehail..UberX..Lyft..or.Taxi."] <- "SoloRidehail1"
+names(COVIDreadin)[names(COVIDreadin) == "In.the.past.month..i.e..DURING.the.outbreak...how.often.did.you.use.the.following.modes.of.transportation...Shared.Ridehail..e.g..UberPool..Lyft.Shared.."] <- "SharedRidehail1"
+names(COVIDreadin)[names(COVIDreadin) == "In.the.past.month..i.e..DURING.the.outbreak...how.often.did.you.use.the.following.modes.of.transportation...Bike.or.Scooter."] <- "PrivateBike/Scooter1"
+names(COVIDreadin)[names(COVIDreadin) == "In.the.past.month..i.e..DURING.the.outbreak...how.often.did.you.use.the.following.modes.of.transportation...Shared.bike.or.scooter..Lime..JUMP..etc..."] <- "SharedBike/Scooter1"
+names(COVIDreadin)[names(COVIDreadin) == "In.the.past.month..i.e..DURING.the.outbreak...how.often.did.you.use.the.following.modes.of.transportation...Walk."] <- "Walk1"
+names(COVIDreadin)[names(COVIDreadin) == "In.the.past.month..i.e..DURING.the.outbreak...what.mode.of.transportation.did.you.generally.use.for.the.following.travel.purposes...Work.School."] <- "TravelModeWork1"
+names(COVIDreadin)[names(COVIDreadin) == "In.the.past.month..i.e..DURING.the.outbreak...what.mode.of.transportation.did.you.generally.use.for.the.following.travel.purposes...Grocery.Shopping."] <- "TravelModeGrocery1"
+names(COVIDreadin)[names(COVIDreadin) == "In.the.past.month..i.e..DURING.the.outbreak...what.mode.of.transportation.did.you.generally.use.for.the.following.travel.purposes...Other.Shopping."] <- "TravelModeOtherShopping1"
+names(COVIDreadin)[names(COVIDreadin) == "In.the.past.month..i.e..DURING.the.outbreak...what.mode.of.transportation.did.you.generally.use.for.the.following.travel.purposes...Errands..e.g..bank..doctor.appointment.."] <- "TravelModeErrands1"
+names(COVIDreadin)[names(COVIDreadin) == "In.the.past.month..i.e..DURING.the.outbreak...what.mode.of.transportation.did.you.generally.use.for.the.following.travel.purposes...Social..Meal.or.Recreation."] <- "TravelModeSocial1"
+names(COVIDreadin)[names(COVIDreadin) == "Tell.us.if.your.household.s.IN.STORE.grocery.shopping.behavior.has.changed.as.a.result.of.the.outbreak...Check.all.that.apply.."] <- "If in-store grocery shopping behaviors change"
+names(COVIDreadin)[names(COVIDreadin) == "What.is.the.main.reason.for.the.following.changes.in.your.travel.behaviors.in.the.past.month..i.e..DURING.the.outbreak....Change.in.working.from.home."] <- "Reasons change WFH"
+names(COVIDreadin)[names(COVIDreadin) == "What.is.the.main.reason.for.the.following.changes.in.your.travel.behaviors.in.the.past.month..i.e..DURING.the.outbreak....Change.in.work.hours."] <- "Reasons change working hours"
+names(COVIDreadin)[names(COVIDreadin) == "What.is.the.main.reason.for.the.following.changes.in.your.travel.behaviors.in.the.past.month..i.e..DURING.the.outbreak....Change.in.mode.of.transportation.for.work.trips."] <- "Reasons change work-trip mode"
+names(COVIDreadin)[names(COVIDreadin) == "What.is.the.main.reason.for.the.following.changes.in.your.travel.behaviors.in.the.past.month..i.e..DURING.the.outbreak....Change.in.online.grocery.shopping."] <- "Reasons change online-grocery shopping"
+names(COVIDreadin)[names(COVIDreadin) == "What.is.the.main.reason.for.the.following.changes.in.your.travel.behaviors.in.the.past.month..i.e..DURING.the.outbreak....Change.in.in.store.grocery.shopping."] <- "Reasons change in-store-grocery shopping"
+names(COVIDreadin)[names(COVIDreadin) == "What.is.the.main.reason.for.the.following.changes.in.your.travel.behaviors.in.the.past.month..i.e..DURING.the.outbreak....Change.in.other.shopping."] <- "Reasons change other-purpose shopping"
+names(COVIDreadin)[names(COVIDreadin) == "What.is.the.main.reason.for.the.following.changes.in.your.travel.behaviors.in.the.past.month..i.e..DURING.the.outbreak....Change.in.mode.of.transportation.for.non.work.trips."] <- "Reasons change non-work-trip mode"
+names(COVIDreadin)[names(COVIDreadin) == "Tell.us.how.your.work.hours.have.changed.as.a.result.of.the.outbreak...I.start.working....."] <- "Work start time change"
+names(COVIDreadin)[names(COVIDreadin) == "Tell.us.how.your.work.hours.have.changed.as.a.result.of.the.outbreak...I.stop.working....."] <- "Work stop time change"
+names(COVIDreadin)[names(COVIDreadin) == "Please.rate.your.agreement.with.the.following.statements.under.today.s.conditions...Media.is.exaggerating.the.spread.of.the.coronavirus.."] <- "Attitude: Media is exaggerating the spread of the coronavirus"
+names(COVIDreadin)[names(COVIDreadin) == "Please.rate.your.agreement.with.the.following.statements.under.today.s.conditions...Wearing.face.covering.should.be.mandatory.."] <- "Attitude: Wearing face covering should be mandatory"
+names(COVIDreadin)[names(COVIDreadin) == "Please.rate.your.agreement.with.the.following.statements.under.today.s.conditions...Shutting.down.businesses.to.prevent.the.spread.of.the.coronavirus.is.not.worth.the.economic.damage.that.it.causes.."] <- "Attutude: Shutting down businesses is not worth the economic damage"
+names(COVIDreadin)[names(COVIDreadin) == "Please.rate.your.agreement.with.the.following.statements.under.today.s.conditions...Everyone.should.stay.at.home.as.much.as.possible.until.the.coronavirus.has.subsided.."] <- "Attitude: Everyone should stay at home as much as possible"
+names(COVIDreadin)[names(COVIDreadin) == "Please.rate.your.agreement.with.the.following.statements.under.today.s.conditions...Physical.distancing.is.an.efficient.approach.for.controlling.the.coronavirus."] <- "Attitude: Physical distancing is an efficient approach"
+names(COVIDreadin)[names(COVIDreadin) == "Please.rate.your.agreement.with.the.following.statements.under.today.s.conditions...I.m.concerned.that.friends.or.family.will.experience.serious.health.issues.if.they.catch.the.coronavirus.."] <- "Attitude: I'm concerned family experience health issues if coronavirus"
+names(COVIDreadin)[names(COVIDreadin) == "Please.rate.your.agreement.with.the.following.statements.under.today.s.conditions...My.friends.and.family.expect.me.to.stay.at.home.until.the.coronavirus.subsides.."] <- "Attitude: My family expect me to stay at home"
+names(COVIDreadin)[names(COVIDreadin) == "Please.rate.your.agreement.with.the.following.statements.under.today.s.conditions...Working.from.home.increases.family.conflicts.."] <- "Attitude: WFH increases family conflicts"
+names(COVIDreadin)[names(COVIDreadin) == "Please.rate.your.agreement.with.the.following.statements.under.today.s.conditions...I.miss.my.commute.."] <- "Attitude: I miss my commute"
+names(COVIDreadin)[names(COVIDreadin) == "Please.rate.your.agreement.with.the.following.statements.under.today.s.conditions...I.can.efficiently.replace.most.of.my.in.person.work.meetings.with.online.meetings."] <- "Attitude: I can replace in-person work meetings with online meetings"
+names(COVIDreadin)[names(COVIDreadin) == "Please.rate.your.agreement.with.the.following.statements.under.today.s.conditions...I.perform.better.when.I.interact.with.my.co.workers.in.person.."] <- "Attitude: I perform better with co-worker in person"
+names(COVIDreadin)[names(COVIDreadin) == "Please.rate.your.agreement.with.the.following.statements.under.today.s.conditions...I.enjoy.social.interactions.with.my.colleagues.."] <- "Attitude: I enjoy social interactions with my colleagues"
+names(COVIDreadin)[names(COVIDreadin) == "Please.rate.your.agreement.with.the.following.statements.under.today.s.conditions...Working.from.home.makes.me.less.disciplined.self.controlled.."] <- "Attitude: WFH makes me less disciplined"
+names(COVIDreadin)[names(COVIDreadin) == "Please.rate.your.agreement.with.the.following.statements.under.today.s.conditions...I.don.t.mind.traveling.on.a.crowded.bus.."] <- "Attitude: I don't mind traveling on a crowded bus"
+names(COVIDreadin)[names(COVIDreadin) == "Please.rate.your.agreement.with.the.following.statements.under.today.s.conditions...Traveling.by.bus.or.light.rail.poses.a.risk.to.my.health.."] <- "Attitude: Traveling by bus poses a risk to my health"
+names(COVIDreadin)[names(COVIDreadin) == "Please.rate.your.agreement.with.the.following.statements.under.today.s.conditions...I.m.comfortable.sharing.a.ride.with.a.stranger.."] <- "Attitude: I'm comfortable sharing a ride with a stranger"
+names(COVIDreadin)[names(COVIDreadin) == "Please.rate.your.agreement.with.the.following.statements.under.today.s.conditions...I.try.to.use.transportation.options.that.allow.me.to.avoid.contact.with.other.people.."] <- "Attitude: I use transportation that avoid contact with others"
+names(COVIDreadin)[names(COVIDreadin) == "Please.rate.your.agreement.with.the.following.statements.under.today.s.conditions...I.would.like.to.share.rides.with.others.if.it.saves.money.."] <- "Attitude: I share rides with others if it saves money"
+names(COVIDreadin)[names(COVIDreadin) == "Please.rate.your.agreement.with.the.following.statements.under.today.s.conditions...I.would.travel.on.a.bus.or.light.rail.if.physical.distancing..measures.are.enforced.."] <- "Attitude: I travel by bus if physical distancing are enforced"
+names(COVIDreadin)[names(COVIDreadin) == "Please.rate.your.agreement.with.the.following.statements.under.today.s.conditions...Personal.space.is.important.to.me.when.I.travel.."] <- "Attitude: Personal space is important to me when I travel"
+names(COVIDreadin)[names(COVIDreadin) == "Please.rate.your.agreement.with.the.following.statements.under.today.s.conditions...Shopping.online.is.convenient.."] <- "Attitude: Shopping online is convenient"
+names(COVIDreadin)[names(COVIDreadin) == "Please.rate.your.agreement.with.the.following.statements.under.today.s.conditions...It.is.important.to.me.to.physically.check.out.items.before.buying.them.."] <- "Attitude: Important to physically check items when shopping"
+names(COVIDreadin)[names(COVIDreadin) == "Please.rate.your.agreement.with.the.following.statements.under.today.s.conditions...In.store.grocery.shopping.is.fun.."] <- "Attitude: In-store grocery shopping is fun"
+names(COVIDreadin)[names(COVIDreadin) == "Please.rate.your.agreement.with.the.following.statements.under.today.s.conditions...I.prefer.buying.groceries.online.rather.than.going.to.the.store.."] <- "Attitude: I prefer buying groceries online"
+names(COVIDreadin)[names(COVIDreadin) == "Please.rate.your.agreement.with.the.following.statements.under.today.s.conditions...Even.if.I.don.t.end.up.buying.anything..I.still.enjoy.going.to.stores.and.browsing.."] <- "Attitude: I enjoy going to stores and browsing"
+names(COVIDreadin)[names(COVIDreadin) == "Please.rate.your.agreement.with.the.following.statements.under.today.s.conditions...Eating.in.restaurants.is.a.fun.leisure.activity.."] <- "Attitude: Eating in restaurants is fun"
+names(COVIDreadin)[names(COVIDreadin) == "Sometime.in.the.future..when.COVID.19.will.no.longer.be.a.threat..how.often.do.you.think.you.will......work.from.home.."] <- "WFH frequency2"
+names(COVIDreadin)[names(COVIDreadin) == "Sometime.in.the.future..when.COVID.19.will.no.longer.be.a.threat..how.often.do.you.think.you.will......shop.in.stores.for.groceries.."] <- "In-store grocery shopping frequency2"
+names(COVIDreadin)[names(COVIDreadin) == "Sometime.in.the.future..when.COVID.19.will.no.longer.be.a.threat..how.often.do.you.think.you.will......order.groceries.online.for.pick.up.delivery.."] <- "Online grocery shopping frequency2"
+names(COVIDreadin)[names(COVIDreadin) == "Sometime.in.the.future..when.COVID.19.will.no.longer.be.a.threat..how.often.do.you.think.you.will......order.other.items.online.for.pick.up.delivery.."] <- "Online other-purpose shopping frequency2"
+names(COVIDreadin)[names(COVIDreadin) == "Sometime.in.the.future..when.COVID.19.will.no.longer.be.a.threat..how.often.do.you.think.you.will......shop.in.stores.for.other.items.."] <- "In-person other-purpose shopping frequency2"
+names(COVIDreadin)[names(COVIDreadin) == "Sometime.in.the.future..when.COVID.19.will.no.longer.be.a.threat..how.often.do.you.think.you.will......eat.a.meal.in.a.restaurant.."] <- "In-person restaurant2"
+names(COVIDreadin)[names(COVIDreadin) == "Sometime.in.the.future..when.COVID.19.will.no.longer.be.a.threat..how.often.do.you.think.you.will......order.food.for.pick.up.delivery.from.a.restaurant.."] <- "Online restaurant2"
+names(COVIDreadin)[names(COVIDreadin) == "Sometime.in.the.future..when.COVID.19.will.no.longer.be.a.threat..how.often.do.you.think.you.will.use.the.following.modes.of.transportation...Drive.Alone."] <- "Drivealone2"
+names(COVIDreadin)[names(COVIDreadin) == "Sometime.in.the.future..when.COVID.19.will.no.longer.be.a.threat..how.often.do.you.think.you.will.use.the.following.modes.of.transportation...Carpool."] <- "Carpool2"
+names(COVIDreadin)[names(COVIDreadin) == "Sometime.in.the.future..when.COVID.19.will.no.longer.be.a.threat..how.often.do.you.think.you.will.use.the.following.modes.of.transportation...Ferry.or.Water.Taxi."] <- "Water2"
+names(COVIDreadin)[names(COVIDreadin) == "Sometime.in.the.future..when.COVID.19.will.no.longer.be.a.threat..how.often.do.you.think.you.will.use.the.following.modes.of.transportation...Bike.or.Scooter."] <- "PrivateBike/Scooter2"
+names(COVIDreadin)[names(COVIDreadin) == "Sometime.in.the.future..when.COVID.19.will.no.longer.be.a.threat..how.often.do.you.think.you.will.use.the.following.modes.of.transportation...Shared.bike.or.scooter..Lime..JUMP..etc..."] <- "SharedBike/Scooter2"
+names(COVIDreadin)[names(COVIDreadin) == "Sometime.in.the.future..when.COVID.19.will.no.longer.be.a.threat..how.often.do.you.think.you.will.use.the.following.modes.of.transportation...Walk."] <- "Walk2"
+names(COVIDreadin)[names(COVIDreadin) == "Which.of.the.following.currently.live.with.you...Check.all.that.apply.."] <- "Who live with you"
+names(COVIDreadin)[names(COVIDreadin) == "Which.of.the.following.apply.to.the.place.where.you.live...Check.all.that.apply.."] <- "Residence"
+```
+
+## Display the data
+```{R}
+COVIDdata <- COVIDreadin[,c("Gender", "Job", "Race", "Income", "Age", "Who live with you", "Occupation", "Education", "Drivealone0", "Drivealone1", "Drivealone2", "Carpool0", "Carpool1", "Carpool2", "SoloRidehail0", "SoloRidehail1", "SoloRidehail2", "SharedRidehail0", "SharedRidehail1", "SharedRidehail2", "PrivateBike/Scooter0", "PrivateBike/Scooter1", "PrivateBike/Scooter2", "SharedBike/Scooter0", "SharedBike/Scooter1", "SharedBike/Scooter2", "Walk0", "Walk1", "Walk2", "Attitude: Media is exaggerating the spread of the coronavirus", "Attitude: Everyone should stay at home as much as possible", "Attitude: Physical distancing is an efficient approach", "Attitude: My family expect me to stay at home", "Attitude: I miss my commute", "Attitude: I don't mind traveling on a crowded bus", "Attitude: Traveling by bus poses a risk to my health", "Attitude: I use transportation that avoid contact with others", "Attitude: I travel by bus if physical distancing are enforced", "Attitude: Personal space is important to me when I travel", "Attitude: WFH increases family conflicts", "Attitude: I can replace in-person work meetings with online meetings", "Attitude: I perform better with co-worker in person", "Attitude: I enjoy social interactions with my colleagues", "Attitude: WFH makes me less disciplined", "Attitude: Shopping online is convenient", "Attitude: I prefer buying groceries online", "Attitude: Eating in restaurants is fun", "Attitude: In-store grocery shopping is fun", "Attitude: Important to physically check items when shopping", "Attitude: I enjoy going to stores and browsing", "Reasons change WFH", "COVID", "WFH frequency0", "WFH frequency1", "WFH frequency2", "In-store grocery shopping frequency0", "In-store grocery shopping frequency1", "In-store grocery shopping frequency2", "In-person other-purpose shopping frequency0", "In-person other-purpose shopping frequency1", "In-person other-purpose shopping frequency2", "In-person restaurant0", "In-person restaurant1", "In-person restaurant2", "Home", "Online restaurant0", "Online restaurant1", "Online restaurant2", "Online grocery shopping frequency0", "Online grocery shopping frequency1", "Online grocery shopping frequency2", "Online other-purpose shopping frequency0", "Online other-purpose shopping frequency1", "Online other-purpose shopping frequency2", "Transit0", "Transit1", "Transit2")]
+
+head(COVIDdata)
+```
+
+## Categorize variables
+```{R}
+ ##COVIDdata<- cldata_la
+```
+
+#### Job Status
+```{r}
+COVIDdata <- COVIDdata %>% mutate(Job = ifelse(Job %in% unique(COVIDdata$Job)[c(1,38,11)], "Student", 
+                                               ifelse(Job %in% unique(COVIDdata$Job)[c(2,24,25,27,14)], "EmployedFullTime", 
+                                                      ifelse(Job %in% unique(COVIDdata$Job)[c(4,21)], "EmployedPartTime", 
+                                                             ifelse(Job %in% unique(COVIDdata$Job)[c(3,16,17,31,35)], "Unemployed", 
+                                                                    ifelse(Job %in% unique(COVIDdata$Job)[c(6,7,8,10,19,20,22,26,28,29,30,33,36,37,39)], "Self-employed", 
+                                                                           ifelse(Job %in% unique(COVIDdata$Job)[c(5)], "Retired", "Furloughed")))))))
+```
+
+#### Gender
+```{r echo = FALSE}
+# Rename gender
+COVIDdata <- COVIDdata %>% mutate(Gender = ifelse(Gender %in% unique(COVIDdata$Gender)[c(2)], "Male", 
+                                               ifelse(Gender %in% unique(COVIDdata$Gender)[c(1)], "Female", "Nonbinary")))
+##COVIDdata <- filter(COVIDdata, COVIDdata$Gender != "Nonbinary")
+```
+
+#### Age
+```{r echo = FALSE}
+# Rename age
+COVIDdata <- COVIDdata %>% mutate(Age = ifelse(Age >= 65, ">=65",
+                                              ifelse(Age >= 40, "40-64", "18-39")))
+
+COVIDdata$Age <- factor(COVIDdata$Age, levels = c("18-39", "40-64", ">=65"))
+```
+
+#### Education
+```{r echo = FALSE}
+# Rename Education
+
+COVIDdata <- COVIDdata %>% mutate(Education = ifelse(Education %in% unique(COVIDdata$Education)[c(6,7)], "(Less than) High school",
+                                                         ifelse(Education %in% unique(COVIDdata$Education)[c(1,3,4,5)], "College",
+                                                                ifelse(Education %in% unique(COVIDdata$Education)[c(2)], "Graduate school","None"))))
+
+COVIDdata$Education <- factor(COVIDdata$Education, levels = c("(Less than) High school", "College", "Graduate school"))
+
+```
+
+#### Husband/wife/partner
+```{R}
+
+COVIDdata$partner <- grepl("Husband/wife/partner", COVIDdata$`Who live with you`)
+
+```
+
+#### children
+```{R}
+
+COVIDdata$children <- grepl("Children aged 0-2|Children aged 3-5|Children aged 6-11", COVIDdata$`Who live with you`)
+COVIDdata$teenager <- grepl("Children aged 12-17", COVIDdata$`Who live with you`)
+COVIDdata$adults <- grepl("Children aged 18 or more", COVIDdata$`Who live with you`)
+
+COVIDdata <- COVIDdata %>% mutate(Children = ifelse(children == TRUE, "Children",
+                                                         ifelse(teenager == TRUE, "Teenager",
+                                                                ifelse(adults == TRUE, "Adults","No children"))))
+
+COVIDdata <- COVIDdata[,!(names(COVIDdata) %in% c("children", "teenager", "adults"))]
+
+```
+
+#### Race
+```{r echo = FALSE}
+COVIDdata <- COVIDdata %>% mutate(Race = ifelse(Race %in% unique(COVIDdata$Race)[c(1,22,23,21,25,31,32,38,35)], "White", 
+                                                ifelse(Race %in% unique(COVIDdata$Race)[c(2,19,26,40)], "Asian", 
+                                                       ifelse(Race %in% unique(COVIDdata$Race)[c(4)], "African", 
+                                                              ifelse(Race %in% unique(COVIDdata$Race)[c(6,8,13,17)], "Hispanic",
+                                                                     ifelse(Race %in% unique(COVIDdata$Race)[c(14,15)], "Native American",
+                                                                            ifelse(Race %in% unique(COVIDdata$Race)[c(39,42,44,45,48,11)], "None","Mixed")))))))
+
+##COVIDdata <- filter(COVIDdata, COVIDdata$Race %in% c("White", "Asian", "African", "Hispanic", "Native American"))
+```
+
+#### Income
+```{r echo = FALSE}
+# Rename Education
+COVIDdata <- COVIDdata %>% mutate(Income = ifelse(Income %in% c("Less than $10,000", "$10,000 to $14,999", "$15,000 to $19,999", "$20,000 to $24,999", "$25,000 to $34,999", "$35,000 to $49,999"), "<50",
+                                                         ifelse(Income %in% c("$50,000 to $74,999", "$75,000 to $99,999"), "50-99",">100")))
+
+COVIDdata$Income <- factor(COVIDdata$Income, levels = c("<50", "50-99", ">100"))
+```
+
+#### Occupation
+```{r echo = FALSE}
+# Rename Occupation
+COVIDdata <- COVIDdata %>% mutate(Occupation = ifelse(Occupation %in% unique(COVIDdata$Occupation)[c(2,3,4,5,6,8)], "High-risk Occupation","Low-risk Occupation"))
+
+```
+
+#### Attitude: Everyone should stay at home as much as possible until the coronavirus has subsided
+```{r echo = FALSE}
+COVIDdata <- COVIDdata %>% mutate(`Attitude: Everyone should stay at home as much as possible` = ifelse(`Attitude: Everyone should stay at home as much as possible` == "Strongly disagree", -5,
+          ifelse(`Attitude: Everyone should stay at home as much as possible` == "Disagree", -3, 
+                 ifelse(`Attitude: Everyone should stay at home as much as possible` == "Somewhat disagree", -1,
+                        ifelse(`Attitude: Everyone should stay at home as much as possible` == "Somewhat agree", 1,
+                              ifelse(`Attitude: Everyone should stay at home as much as possible` == "Agree", 3, 
+                                     ifelse(`Attitude: Everyone should stay at home as much as possible` == "Strongly agree", 5, "None")))))))
+```
+
+#### Attitude: Physical distancing is an efficient approach for controlling the coronavirus
+```{r echo = FALSE}
+
+COVIDdata <- COVIDdata %>% mutate(`Attitude: Physical distancing is an efficient approach` = ifelse(`Attitude: Physical distancing is an efficient approach` == "Strongly disagree", -5,
+          ifelse(`Attitude: Physical distancing is an efficient approach` == "Disagree", -3, 
+                 ifelse(`Attitude: Physical distancing is an efficient approach` == "Somewhat disagree", -1,
+                        ifelse(`Attitude: Physical distancing is an efficient approach` == "Somewhat agree", 1,
+                              ifelse(`Attitude: Physical distancing is an efficient approach` == "Agree", 3, 
+                                     ifelse(`Attitude: Physical distancing is an efficient approach` == "Strongly agree", 5, "None")))))))
+
+```
+
+#### Attitude: My family expect me to stay at home
+```{r echo = FALSE}
+
+COVIDdata <- COVIDdata %>% mutate(`Attitude: My family expect me to stay at home` = ifelse(`Attitude: My family expect me to stay at home` == "Strongly disagree", -5,
+          ifelse(`Attitude: My family expect me to stay at home` == "Disagree", -3, 
+                 ifelse(`Attitude: My family expect me to stay at home` == "Somewhat disagree", -1,
+                        ifelse(`Attitude: My family expect me to stay at home` == "Somewhat agree", 1,
+                              ifelse(`Attitude: My family expect me to stay at home` == "Agree", 3, 
+                                     ifelse(`Attitude: My family expect me to stay at home` == "Strongly agree", 5, "None")))))))
+```
+
+#### Attitude: I miss my commute
+```{r echo = FALSE}
+
+COVIDdata <- COVIDdata %>% mutate(`Attitude: I miss my commute` = ifelse(`Attitude: I miss my commute` == "Strongly disagree", -5,
+          ifelse(`Attitude: I miss my commute` == "Disagree", -3, 
+                 ifelse(`Attitude: I miss my commute` == "Somewhat disagree", -1,
+                        ifelse(`Attitude: I miss my commute` == "Somewhat agree", 1,
+                              ifelse(`Attitude: I miss my commute` == "Agree", 3, 
+                                     ifelse(`Attitude: I miss my commute` == "Strongly agree", 5, "None")))))))
+
+```
+
+#### Attitude: Traveling by bus poses a risk to my health
+```{r echo = FALSE}
+
+COVIDdata <- COVIDdata %>% mutate(`Attitude: Traveling by bus poses a risk to my health` = ifelse(`Attitude: Traveling by bus poses a risk to my health` == "Strongly disagree", -5,
+          ifelse(`Attitude: Traveling by bus poses a risk to my health` == "Disagree", -3, 
+                 ifelse(`Attitude: Traveling by bus poses a risk to my health` == "Somewhat disagree", -1,
+                        ifelse(`Attitude: Traveling by bus poses a risk to my health` == "Somewhat agree", 1,
+                              ifelse(`Attitude: Traveling by bus poses a risk to my health` == "Agree", 3, 
+                                     ifelse(`Attitude: Traveling by bus poses a risk to my health` == "Strongly agree", 5, "None")))))))
+```
+
+#### Attitude: I use transportation that avoid contact with others
+```{r echo = FALSE}
+
+COVIDdata <- COVIDdata %>% mutate(`Attitude: I use transportation that avoid contact with others` = ifelse(`Attitude: I use transportation that avoid contact with others` == "Strongly disagree", -5,
+          ifelse(`Attitude: I use transportation that avoid contact with others` == "Disagree", -3, 
+                 ifelse(`Attitude: I use transportation that avoid contact with others` == "Somewhat disagree", -1,
+                        ifelse(`Attitude: I use transportation that avoid contact with others` == "Somewhat agree", 1,
+                              ifelse(`Attitude: I use transportation that avoid contact with others` == "Agree", 3, 
+                                     ifelse(`Attitude: I use transportation that avoid contact with others` == "Strongly agree", 5, "None")))))))
+
+```
+
+#### Attitude: I don't mind traveling on a crowded bus
+```{r echo = FALSE}
+
+COVIDdata <- COVIDdata %>% mutate(`Attitude: I don't mind traveling on a crowded bus` = ifelse(`Attitude: I don't mind traveling on a crowded bus` == "Strongly disagree", -5,
+          ifelse(`Attitude: I don't mind traveling on a crowded bus` == "Disagree", -3, 
+                 ifelse(`Attitude: I don't mind traveling on a crowded bus` == "Somewhat disagree", -1,
+                        ifelse(`Attitude: I don't mind traveling on a crowded bus` == "Somewhat agree", 1,
+                              ifelse(`Attitude: I don't mind traveling on a crowded bus` == "Agree", 3, 
+                                     ifelse(`Attitude: I don't mind traveling on a crowded bus` == "Strongly agree", 5, "None")))))))
+```
+
+#### Attitude: I travel by bus if physical distancing are enforced
+```{r echo = FALSE}
+
+COVIDdata <- COVIDdata %>% mutate(`Attitude: I travel by bus if physical distancing are enforced` = ifelse(`Attitude: I travel by bus if physical distancing are enforced` == "Strongly disagree", -5,
+          ifelse(`Attitude: I travel by bus if physical distancing are enforced` == "Disagree", -3, 
+                 ifelse(`Attitude: I travel by bus if physical distancing are enforced` == "Somewhat disagree", -1,
+                        ifelse(`Attitude: I travel by bus if physical distancing are enforced` == "Somewhat agree", 1,
+                              ifelse(`Attitude: I travel by bus if physical distancing are enforced` == "Agree", 3, 
+                                     ifelse(`Attitude: I travel by bus if physical distancing are enforced` == "Strongly agree", 5, "None")))))))
+
+```
+
+#### Attitude: Personal space is important to me when I travel
+```{r echo = FALSE}
+
+COVIDdata <- COVIDdata %>% mutate(`Attitude: Personal space is important to me when I travel` = ifelse(`Attitude: Personal space is important to me when I travel` == "Strongly disagree", -5,
+          ifelse(`Attitude: Personal space is important to me when I travel` == "Disagree", -3, 
+                 ifelse(`Attitude: Personal space is important to me when I travel` == "Somewhat disagree", -1,
+                        ifelse(`Attitude: Personal space is important to me when I travel` == "Somewhat agree", 1,
+                              ifelse(`Attitude: Personal space is important to me when I travel` == "Agree", 3, 
+                                     ifelse(`Attitude: Personal space is important to me when I travel` == "Strongly agree", 5, "None")))))))
+
+```
+
+### Private car
+```{R echo = FALSE}
+COVIDdata <- COVIDdata %>% mutate(Drivealone0 = ifelse(Drivealone0 == "Once a month or less", 0.125, 
+                                                    ifelse(Drivealone0 == "A few times a month", 0.625, 
+                                                        ifelse(Drivealone0 == "Everyday", 7, 
+                                                            ifelse(Drivealone0 == "1-2 days a week", 1.5, 
+                                                                 ifelse(Drivealone0 == "3-4 days a week", 3.5,
+                                                                    ifelse(Drivealone0 == "Never", 0,"None")))))))
+
+COVIDdata <- COVIDdata %>% mutate(Drivealone1 = ifelse(Drivealone1 == "Once a month or less", 0.125, 
+                                                    ifelse(Drivealone1 == "A few times a month", 0.625, 
+                                                        ifelse(Drivealone1 == "Everyday", 7, 
+                                                            ifelse(Drivealone1 == "1-2 days a week", 1.5, 
+                                                                 ifelse(Drivealone1 == "3-4 days a week", 3.5,
+                                                                    ifelse(Drivealone1 == "Never", 0,"None")))))))
+
+COVIDdata <- COVIDdata %>% mutate(Drivealone2 = ifelse(Drivealone2 == "Once a month or less", 0.125, 
+                                                    ifelse(Drivealone2 == "A few times a month", 0.625, 
+                                                        ifelse(Drivealone2 == "Everyday", 7, 
+                                                            ifelse(Drivealone2 == "1-2 days a week", 1.5, 
+                                                                 ifelse(Drivealone2 == "3-4 days a week", 3.5,
+                                                                    ifelse(Drivealone2 == "Never", 0,"None")))))))
+
+```
+
+### Carpool
+```{R echo = FALSE}
+COVIDdata <- COVIDdata %>% mutate(Carpool0 = ifelse(Carpool0 == "Once a month or less", 0.125, 
+                                                    ifelse(Carpool0 == "A few times a month", 0.625, 
+                                                        ifelse(Carpool0 == "Everyday", 7, 
+                                                            ifelse(Carpool0 == "1-2 days a week", 1.5, 
+                                                                 ifelse(Carpool0 == "3-4 days a week", 3.5,
+                                                                    ifelse(Carpool0 == "Never", 0,"None")))))))
+
+COVIDdata <- COVIDdata %>% mutate(Carpool1 = ifelse(Carpool1 == "Once a month or less", 0.125, 
+                                                    ifelse(Carpool1 == "A few times a month", 0.625, 
+                                                        ifelse(Carpool1 == "Everyday", 7, 
+                                                            ifelse(Carpool1 == "1-2 days a week", 1.5, 
+                                                                 ifelse(Carpool1 == "3-4 days a week", 3.5,
+                                                                    ifelse(Carpool1 == "Never", 0,"None")))))))
+
+COVIDdata <- COVIDdata %>% mutate(Carpool2 = ifelse(Carpool2 == "Once a month or less", 0.125, 
+                                                    ifelse(Carpool2 == "A few times a month", 0.625, 
+                                                        ifelse(Carpool2 == "Everyday", 7, 
+                                                            ifelse(Carpool2 == "1-2 days a week", 1.5, 
+                                                                 ifelse(Carpool2 == "3-4 days a week", 3.5,
+                                                                    ifelse(Carpool2 == "Never", 0,"None")))))))
+
+```
+
+### Solo-shared hailing
+```{R echo = FALSE}
+COVIDdata <- COVIDdata %>% mutate(SoloRidehail0 = ifelse(SoloRidehail0 == "Once a month or less", 0.125, 
+                                                    ifelse(SoloRidehail0 == "A few times a month", 0.625, 
+                                                        ifelse(SoloRidehail0 == "Everyday", 7, 
+                                                            ifelse(SoloRidehail0 == "1-2 days a week", 1.5, 
+                                                                 ifelse(SoloRidehail0 == "3-4 days a week", 3.5,
+                                                                    ifelse(SoloRidehail0 == "Never", 0,"None")))))))
+
+COVIDdata <- COVIDdata %>% mutate(SoloRidehail1 = ifelse(SoloRidehail1 == "Once a month or less", 0.125, 
+                                                    ifelse(SoloRidehail1 == "A few times a month", 0.625, 
+                                                        ifelse(SoloRidehail1 == "Everyday", 7, 
+                                                            ifelse(SoloRidehail1 == "1-2 days a week", 1.5, 
+                                                                 ifelse(SoloRidehail1 == "3-4 days a week", 3.5,
+                                                                    ifelse(SoloRidehail1 == "Never", 0,"None")))))))
+
+COVIDdata <- COVIDdata %>% mutate(SoloRidehail2 = ifelse(SoloRidehail2 == "Once a month or less", 0.125, 
+                                                    ifelse(SoloRidehail2 == "A few times a month", 0.625, 
+                                                        ifelse(SoloRidehail2 == "Everyday", 7, 
+                                                            ifelse(SoloRidehail2 == "1-2 days a week", 1.5, 
+                                                                 ifelse(SoloRidehail2 == "3-4 days a week", 3.5,
+                                                                    ifelse(SoloRidehail2 == "Never", 0,"None")))))))
+
+```
+
+### Shared ride hailing
+```{R echo = FALSE}
+COVIDdata <- COVIDdata %>% mutate(SharedRidehail0 = ifelse(SharedRidehail0 == "Once a month or less", 0.125, 
+                                                    ifelse(SharedRidehail0 == "A few times a month", 0.625, 
+                                                        ifelse(SharedRidehail0 == "Everyday", 7, 
+                                                            ifelse(SharedRidehail0 == "1-2 days a week", 1.5, 
+                                                                 ifelse(SharedRidehail0 == "3-4 days a week", 3.5,
+                                                                    ifelse(SharedRidehail0 == "Never", 0,"None")))))))
+
+COVIDdata <- COVIDdata %>% mutate(SharedRidehail1 = ifelse(SharedRidehail1 == "Once a month or less", 0.125, 
+                                                    ifelse(SharedRidehail1 == "A few times a month", 0.625, 
+                                                        ifelse(SharedRidehail1 == "Everyday", 7, 
+                                                            ifelse(SharedRidehail1 == "1-2 days a week", 1.5, 
+                                                                 ifelse(SharedRidehail1 == "3-4 days a week", 3.5,
+                                                                    ifelse(SharedRidehail1 == "Never", 0,"None")))))))
+
+COVIDdata <- COVIDdata %>% mutate(SharedRidehail2 = ifelse(SharedRidehail2 == "Once a month or less", 0.125, 
+                                                    ifelse(SharedRidehail2 == "A few times a month", 0.625, 
+                                                        ifelse(SharedRidehail2 == "Everyday", 7, 
+                                                            ifelse(SharedRidehail2 == "1-2 days a week", 1.5, 
+                                                                 ifelse(SharedRidehail2 == "3-4 days a week", 3.5,
+                                                                    ifelse(SharedRidehail2 == "Never", 0,"None")))))))
+
+```
+
+### Private bikes/scooters
+```{R echo = FALSE}
+COVIDdata <- COVIDdata %>% mutate(`PrivateBike/Scooter0` = ifelse(`PrivateBike/Scooter0` == "Once a month or less", 0.125, 
+                                                    ifelse(`PrivateBike/Scooter0` == "A few times a month", 0.625, 
+                                                        ifelse(`PrivateBike/Scooter0` == "Everyday", 7, 
+                                                            ifelse(`PrivateBike/Scooter0` == "1-2 days a week", 1.5, 
+                                                                 ifelse(`PrivateBike/Scooter0` == "3-4 days a week", 3.5,
+                                                                    ifelse(`PrivateBike/Scooter0` == "Never", 0,"None")))))))
+
+COVIDdata <- COVIDdata %>% mutate(`PrivateBike/Scooter1` = ifelse(`PrivateBike/Scooter1` == "Once a month or less", 0.125, 
+                                                    ifelse(`PrivateBike/Scooter1` == "A few times a month", 0.625, 
+                                                        ifelse(`PrivateBike/Scooter1` == "Everyday", 7, 
+                                                            ifelse(`PrivateBike/Scooter1` == "1-2 days a week", 1.5, 
+                                                                 ifelse(`PrivateBike/Scooter1` == "3-4 days a week", 3.5,
+                                                                    ifelse(`PrivateBike/Scooter1` == "Never", 0,"None")))))))
+
+COVIDdata <- COVIDdata %>% mutate(`PrivateBike/Scooter2` = ifelse(`PrivateBike/Scooter2` == "Once a month or less", 0.125, 
+                                                    ifelse(`PrivateBike/Scooter2` == "A few times a month", 0.625, 
+                                                        ifelse(`PrivateBike/Scooter2` == "Everyday", 7, 
+                                                            ifelse(`PrivateBike/Scooter2` == "1-2 days a week", 1.5, 
+                                                                 ifelse(`PrivateBike/Scooter2` == "3-4 days a week", 3.5,
+                                                                    ifelse(`PrivateBike/Scooter2` == "Never", 0,"None")))))))
+
+```
+
+### Shared bikes/scooters
+```{R echo = FALSE}
+COVIDdata <- COVIDdata %>% mutate(`SharedBike/Scooter0` = ifelse(`SharedBike/Scooter0` == "Once a month or less", 0.125, 
+                                                    ifelse(`SharedBike/Scooter0` == "A few times a month", 0.625, 
+                                                        ifelse(`SharedBike/Scooter0` == "Everyday", 7, 
+                                                            ifelse(`SharedBike/Scooter0` == "1-2 days a week", 1.5, 
+                                                                 ifelse(`SharedBike/Scooter0` == "3-4 days a week", 3.5,
+                                                                    ifelse(`SharedBike/Scooter0` == "Never", 0,"None")))))))
+
+COVIDdata <- COVIDdata %>% mutate(`SharedBike/Scooter1` = ifelse(`SharedBike/Scooter1` == "Once a month or less", 0.125, 
+                                                    ifelse(`SharedBike/Scooter1` == "A few times a month", 0.625, 
+                                                        ifelse(`SharedBike/Scooter1` == "Everyday", 7, 
+                                                            ifelse(`SharedBike/Scooter1` == "1-2 days a week", 1.5, 
+                                                                 ifelse(`SharedBike/Scooter1` == "3-4 days a week", 3.5,
+                                                                    ifelse(`SharedBike/Scooter1` == "Never", 0,"None")))))))
+
+COVIDdata <- COVIDdata %>% mutate(`SharedBike/Scooter2` = ifelse(`SharedBike/Scooter2` == "Once a month or less", 0.125, 
+                                                    ifelse(`SharedBike/Scooter2` == "A few times a month", 0.625, 
+                                                        ifelse(`SharedBike/Scooter2` == "Everyday", 7, 
+                                                            ifelse(`SharedBike/Scooter2` == "1-2 days a week", 1.5, 
+                                                                 ifelse(`SharedBike/Scooter2` == "3-4 days a week", 3.5,
+                                                                    ifelse(`SharedBike/Scooter2` == "Never", 0,"None")))))))
+
+```
+
+### Walking
+```{R echo = FALSE}
+COVIDdata <- COVIDdata %>% mutate(Walk0 = ifelse(Walk0 == "Once a month or less", 0.125, 
+                                                    ifelse(Walk0 == "A few times a month", 0.625, 
+                                                        ifelse(Walk0 == "Everyday", 7, 
+                                                            ifelse(Walk0 == "1-2 days a week", 1.5, 
+                                                                 ifelse(Walk0 == "3-4 days a week", 3.5,
+                                                                    ifelse(Walk0 == "Never", 0,"None")))))))
+
+COVIDdata <- COVIDdata %>% mutate(Walk1 = ifelse(Walk1 == "Once a month or less", 0.125, 
+                                                    ifelse(Walk1 == "A few times a month", 0.625, 
+                                                        ifelse(Walk1 == "Everyday", 7, 
+                                                            ifelse(Walk1 == "1-2 days a week", 1.5, 
+                                                                 ifelse(Walk1 == "3-4 days a week", 3.5,
+                                                                    ifelse(Walk1 == "Never", 0,"None")))))))
+
+COVIDdata <- COVIDdata %>% mutate(Walk2 = ifelse(Walk2 == "Once a month or less", 0.125, 
+                                                    ifelse(Walk2 == "A few times a month", 0.625, 
+                                                        ifelse(Walk2 == "Everyday", 7, 
+                                                            ifelse(Walk2 == "1-2 days a week", 1.5, 
+                                                                 ifelse(Walk2 == "3-4 days a week", 3.5,
+                                                                    ifelse(Walk2 == "Never", 0,"None")))))))
+
+```
+
+### Work from home
+```{R echo = FALSE}
+COVIDdata <- COVIDdata %>% mutate(`WFH frequency0` = ifelse(`WFH frequency0` == "Once a month or less", 0.125, 
+                                                    ifelse(`WFH frequency0` == "A few times a month", 0.625, 
+                                                        ifelse(`WFH frequency0` == "Everyday", 7, 
+                                                            ifelse(`WFH frequency0` == "1-2 days a week", 1.5, 
+                                                                 ifelse(`WFH frequency0` == "3-4 days a week", 3.5,
+                                                                    ifelse(`WFH frequency0` == "Never", 0,"None")))))))
+
+COVIDdata <- COVIDdata %>% mutate(`WFH frequency1` = ifelse(`WFH frequency1` == "Once a month or less", 0.125, 
+                                                    ifelse(`WFH frequency1` == "A few times a month", 0.625, 
+                                                        ifelse(`WFH frequency1` == "Everyday", 7, 
+                                                            ifelse(`WFH frequency1` == "1-2 days a week", 1.5, 
+                                                                 ifelse(`WFH frequency1` == "3-4 days a week", 3.5,
+                                                                    ifelse(`WFH frequency1` == "Never", 0,"None")))))))
+
+COVIDdata <- COVIDdata %>% mutate(`WFH frequency2` = ifelse(`WFH frequency2` == "Once a month or less", 0.125, 
+                                                    ifelse(`WFH frequency2` == "A few times a month", 0.625, 
+                                                        ifelse(`WFH frequency2` == "Everyday", 7, 
+                                                            ifelse(`WFH frequency2` == "1-2 days a week", 1.5, 
+                                                                 ifelse(`WFH frequency2` == "3-4 days a week", 3.5,
+                                                                    ifelse(`WFH frequency2` == "Never", 0,"None")))))))
+
+```
+
+#### Attitude: WFH increases family conflicts
+```{r echo = FALSE}
+unique(COVIDdata$`Attitude: WFH increases family conflicts`)
+
+COVIDdata <- COVIDdata %>% mutate(`Attitude: WFH increases family conflicts` = ifelse(`Attitude: WFH increases family conflicts` == "Strongly disagree", -5,
+          ifelse(`Attitude: WFH increases family conflicts` == "Disagree", -3, 
+                 ifelse(`Attitude: WFH increases family conflicts` == "Somewhat disagree", -1,
+                        ifelse(`Attitude: WFH increases family conflicts` == "Somewhat agree", 1,
+                              ifelse(`Attitude: WFH increases family conflicts` == "Agree", 3, 
+                                     ifelse(`Attitude: WFH increases family conflicts` == "Strongly agree", 5, "None")))))))
+
+```
+
+#### Attitude: I perform better with co-worker in person
+```{r echo = FALSE}
+unique(COVIDdata$`Attitude: I perform better with co-worker in person`)
+
+COVIDdata <- COVIDdata %>% mutate(`Attitude: I perform better with co-worker in person` = ifelse(`Attitude: I perform better with co-worker in person` == "Strongly disagree", -5,
+          ifelse(`Attitude: I perform better with co-worker in person` == "Disagree", -3, 
+                 ifelse(`Attitude: I perform better with co-worker in person` == "Somewhat disagree", -1,
+                        ifelse(`Attitude: I perform better with co-worker in person` == "Somewhat agree", 1,
+                              ifelse(`Attitude: I perform better with co-worker in person` == "Agree", 3, 
+                                     ifelse(`Attitude: I perform better with co-worker in person` == "Strongly agree", 5, "None")))))))
+
+```
+
+#### Attitude: I enjoy social interactions with my colleagues
+```{r echo = FALSE}
+unique(COVIDdata$`Attitude: I enjoy social interactions with my colleagues`)
+
+COVIDdata <- COVIDdata %>% mutate(`Attitude: I enjoy social interactions with my colleagues` = ifelse(`Attitude: I enjoy social interactions with my colleagues` == "Strongly disagree", -5,
+          ifelse(`Attitude: I enjoy social interactions with my colleagues` == "Disagree", -3, 
+                 ifelse(`Attitude: I enjoy social interactions with my colleagues` == "Somewhat disagree", -1,
+                        ifelse(`Attitude: I enjoy social interactions with my colleagues` == "Somewhat agree", 1,
+                              ifelse(`Attitude: I enjoy social interactions with my colleagues` == "Agree", 3, 
+                                     ifelse(`Attitude: I enjoy social interactions with my colleagues` == "Strongly agree", 5, "None")))))))
+
+```
+
+#### Attitude: WFH makes me less disciplined
+```{r echo = FALSE}
+unique(COVIDdata$`Attitude: WFH makes me less disciplined`)
+
+COVIDdata <- COVIDdata %>% mutate(`Attitude: WFH makes me less disciplined` = ifelse(`Attitude: WFH makes me less disciplined` == "Strongly disagree", -5,
+          ifelse(`Attitude: WFH makes me less disciplined` == "Disagree", -3, 
+                 ifelse(`Attitude: WFH makes me less disciplined` == "Somewhat disagree", -1,
+                        ifelse(`Attitude: WFH makes me less disciplined` == "Somewhat agree", 1,
+                              ifelse(`Attitude: WFH makes me less disciplined` == "Agree", 3, 
+                                     ifelse(`Attitude: WFH makes me less disciplined` == "Strongly agree", 5, "None")))))))
+
+```
+
+#### Attitude: I can replace in-person work meetings with online meetings
+```{r echo = FALSE}
+unique(COVIDdata$`Attitude: I can replace in-person work meetings with online meetings`)
+
+COVIDdata <- COVIDdata %>% mutate(`Attitude: I can replace in-person work meetings with online meetings` = ifelse(`Attitude: I can replace in-person work meetings with online meetings` == "Strongly disagree", -5,
+          ifelse(`Attitude: I can replace in-person work meetings with online meetings` == "Disagree", -3, 
+                 ifelse(`Attitude: I can replace in-person work meetings with online meetings` == "Somewhat disagree", -1,
+                        ifelse(`Attitude: I can replace in-person work meetings with online meetings` == "Somewhat agree", 1,
+                              ifelse(`Attitude: I can replace in-person work meetings with online meetings` == "Agree", 3, 
+                                     ifelse(`Attitude: I can replace in-person work meetings with online meetings` == "Strongly agree", 5, "None")))))))
+
+```
+
+### In-person grocery shopping
+```{R echo = FALSE}
+COVIDdata <- COVIDdata %>% mutate(`In-store grocery shopping frequency0` = ifelse(`In-store grocery shopping frequency0` == "Once a month or less", 0.125, 
+                                                    ifelse(`In-store grocery shopping frequency0` == "A few times a month", 0.625, 
+                                                        ifelse(`In-store grocery shopping frequency0` == "Everyday", 7, 
+                                                            ifelse(`In-store grocery shopping frequency0` == "1-2 days a week", 1.5, 
+                                                                 ifelse(`In-store grocery shopping frequency0` == "3-4 days a week", 3.5,
+                                                                    ifelse(`In-store grocery shopping frequency0` == "Never", 0,"None")))))))
+
+COVIDdata <- COVIDdata %>% mutate(`In-store grocery shopping frequency1` = ifelse(`In-store grocery shopping frequency1` == "Once a month or less", 0.125, 
+                                                    ifelse(`In-store grocery shopping frequency1` == "A few times a month", 0.625, 
+                                                        ifelse(`In-store grocery shopping frequency1` == "Everyday", 7, 
+                                                            ifelse(`In-store grocery shopping frequency1` == "1-2 days a week", 1.5, 
+                                                                 ifelse(`In-store grocery shopping frequency1` == "3-4 days a week", 3.5,
+                                                                    ifelse(`In-store grocery shopping frequency1` == "Never", 0,"None")))))))
+
+COVIDdata <- COVIDdata %>% mutate(`In-store grocery shopping frequency2` = ifelse(`In-store grocery shopping frequency2` == "Once a month or less", 0.125, 
+                                                    ifelse(`In-store grocery shopping frequency2` == "A few times a month", 0.625, 
+                                                        ifelse(`In-store grocery shopping frequency2` == "Everyday", 7, 
+                                                            ifelse(`In-store grocery shopping frequency2` == "1-2 days a week", 1.5, 
+                                                                 ifelse(`In-store grocery shopping frequency2` == "3-4 days a week", 3.5,
+                                                                    ifelse(`In-store grocery shopping frequency2` == "Never", 0,"None")))))))
+
+```
+
+#### Attitude: I prefer buying groceries online
+```{r echo = FALSE}
+unique(COVIDdata$`Attitude: I prefer buying groceries online`)
+
+COVIDdata <- COVIDdata %>% mutate(`Attitude: I prefer buying groceries online` = ifelse(`Attitude: I prefer buying groceries online` == "Strongly disagree", -5,
+          ifelse(`Attitude: I prefer buying groceries online` == "Disagree", -3, 
+                 ifelse(`Attitude: I prefer buying groceries online` == "Somewhat disagree", -1,
+                        ifelse(`Attitude: I prefer buying groceries online` == "Somewhat agree", 1,
+                              ifelse(`Attitude: I prefer buying groceries online` == "Agree", 3, 
+                                     ifelse(`Attitude: I prefer buying groceries online` == "Strongly agree", 5, "None")))))))
+
+```
+
+### In-person other-purpose shopping
+```{R echo = FALSE}
+COVIDdata <- COVIDdata %>% mutate(`In-person other-purpose shopping frequency0` = ifelse(`In-person other-purpose shopping frequency0` == "Once a month or less", 0.125, 
+                                                    ifelse(`In-person other-purpose shopping frequency0` == "A few times a month", 0.625, 
+                                                        ifelse(`In-person other-purpose shopping frequency0` == "Everyday", 7, 
+                                                            ifelse(`In-person other-purpose shopping frequency0` == "1-2 days a week", 1.5, 
+                                                                 ifelse(`In-person other-purpose shopping frequency0` == "3-4 days a week", 3.5,
+                                                                    ifelse(`In-person other-purpose shopping frequency0` == "Never", 0,"None")))))))
+
+COVIDdata <- COVIDdata %>% mutate(`In-person other-purpose shopping frequency1` = ifelse(`In-person other-purpose shopping frequency1` == "Once a month or less", 0.125, 
+                                                    ifelse(`In-person other-purpose shopping frequency1` == "A few times a month", 0.625, 
+                                                        ifelse(`In-person other-purpose shopping frequency1` == "Everyday", 7, 
+                                                            ifelse(`In-person other-purpose shopping frequency1` == "1-2 days a week", 1.5, 
+                                                                 ifelse(`In-person other-purpose shopping frequency1` == "3-4 days a week", 3.5,
+                                                                    ifelse(`In-person other-purpose shopping frequency1` == "Never", 0,"None")))))))
+
+COVIDdata <- COVIDdata %>% mutate(`In-person other-purpose shopping frequency2` = ifelse(`In-person other-purpose shopping frequency2` == "Once a month or less", 0.125, 
+                                                    ifelse(`In-person other-purpose shopping frequency2` == "A few times a month", 0.625, 
+                                                        ifelse(`In-person other-purpose shopping frequency2` == "Everyday", 7, 
+                                                            ifelse(`In-person other-purpose shopping frequency2` == "1-2 days a week", 1.5, 
+                                                                 ifelse(`In-person other-purpose shopping frequency2` == "3-4 days a week", 3.5,
+                                                                    ifelse(`In-person other-purpose shopping frequency2` == "Never", 0,"None")))))))
+
+```
+
+#### Attitude: Shopping online is convenient
+```{r echo = FALSE}
+unique(COVIDdata$`Attitude: Shopping online is convenient`)
+
+COVIDdata <- COVIDdata %>% mutate(`Attitude: Shopping online is convenient` = ifelse(`Attitude: Shopping online is convenient` == "Strongly disagree", -5,
+          ifelse(`Attitude: Shopping online is convenient` == "Disagree", -3, 
+                 ifelse(`Attitude: Shopping online is convenient` == "Somewhat disagree", -1,
+                        ifelse(`Attitude: Shopping online is convenient` == "Somewhat agree", 1,
+                              ifelse(`Attitude: Shopping online is convenient` == "Agree", 3, 
+                                     ifelse(`Attitude: Shopping online is convenient` == "Strongly agree", 5, "None")))))))
+
+```
+
+### In-person restaurant
+```{R echo = FALSE}
+COVIDdata <- COVIDdata %>% mutate(`In-person restaurant0` = ifelse(`In-person restaurant0` == "Once a month or less", 0.125, 
+                                                    ifelse(`In-person restaurant0` == "A few times a month", 0.625, 
+                                                        ifelse(`In-person restaurant0` == "Everyday", 7, 
+                                                            ifelse(`In-person restaurant0` == "1-2 days a week", 1.5, 
+                                                                 ifelse(`In-person restaurant0` == "3-4 days a week", 3.5,
+                                                                    ifelse(`In-person restaurant0` == "Never", 0,"None")))))))
+
+COVIDdata <- COVIDdata %>% mutate(`In-person restaurant1` = ifelse(`In-person restaurant1` == "Once a month or less", 0.125, 
+                                                    ifelse(`In-person restaurant1` == "A few times a month", 0.625, 
+                                                        ifelse(`In-person restaurant1` == "Everyday", 7, 
+                                                            ifelse(`In-person restaurant1` == "1-2 days a week", 1.5, 
+                                                                 ifelse(`In-person restaurant1` == "3-4 days a week", 3.5,
+                                                                    ifelse(`In-person restaurant1` == "Never", 0,"None")))))))
+
+COVIDdata <- COVIDdata %>% mutate(`In-person restaurant2` = ifelse(`In-person restaurant2` == "Once a month or less", 0.125, 
+                                                    ifelse(`In-person restaurant2` == "A few times a month", 0.625, 
+                                                        ifelse(`In-person restaurant2` == "Everyday", 7, 
+                                                            ifelse(`In-person restaurant2` == "1-2 days a week", 1.5, 
+                                                                 ifelse(`In-person restaurant2` == "3-4 days a week", 3.5,
+                                                                    ifelse(`In-person restaurant2` == "Never", 0,"None")))))))
+
+```
+
+#### Attitude: Eating in restaurants is fun
+```{r echo = FALSE}
+unique(COVIDdata$`Attitude: Eating in restaurants is fun`)
+
+COVIDdata <- COVIDdata %>% mutate(`Attitude: Eating in restaurants is fun` = ifelse(`Attitude: Eating in restaurants is fun` == "Strongly disagree", -5,
+          ifelse(`Attitude: Eating in restaurants is fun` == "Disagree", -3, 
+                 ifelse(`Attitude: Eating in restaurants is fun` == "Somewhat disagree", -1,
+                        ifelse(`Attitude: Eating in restaurants is fun` == "Somewhat agree", 1,
+                              ifelse(`Attitude: Eating in restaurants is fun` == "Agree", 3, 
+                                     ifelse(`Attitude: Eating in restaurants is fun` == "Strongly agree", 5, "None")))))))
+
+```
+
+### Dependent variable: transit
+```{R}
+COVIDdata <- COVIDdata %>% mutate(Transit0 = ifelse(Transit0 == "Once a month or less", 0.125, 
+                                                    ifelse(Transit0 == "A few times a month", 0.625, 
+                                                        ifelse(Transit0 == "Everyday", 7, 
+                                                            ifelse(Transit0 == "1-2 days a week", 1.5, 
+                                                                 ifelse(Transit0 == "3-4 days a week", 3.5,
+                                                                    ifelse(Transit0 == "Never", 0,"None")))))))
+
+COVIDdata <- COVIDdata %>% mutate(Transit1 = ifelse(Transit1 == "Once a month or less", 0.125, 
+                                                    ifelse(Transit1 == "A few times a month", 0.625, 
+                                                        ifelse(Transit1 == "Everyday", 7, 
+                                                            ifelse(Transit1 == "1-2 days a week", 1.5, 
+                                                                 ifelse(Transit1 == "3-4 days a week", 3.5,
+                                                                    ifelse(Transit1 == "Never", 0,"None")))))))
+
+COVIDdata <- COVIDdata %>% mutate(Transit2 = ifelse(Transit2 == "Once a month or less", 0.125, 
+                                                    ifelse(Transit2 == "A few times a month", 0.625, 
+                                                        ifelse(Transit2 == "Everyday", 7, 
+                                                            ifelse(Transit2 == "1-2 days a week", 1.5, 
+                                                                 ifelse(Transit2 == "3-4 days a week", 3.5,
+                                                                    ifelse(Transit2 == "Never", 0,"None")))))))
+
+
+```
+
+## Clustering
+
+### Compute K-means with k=4,5,6,7
+```{R}
+# prepare the data
+cldata <- COVIDdata[,c("Transit0","Transit1","Transit2")]
+nrow(cldata)
+```
+
+
+## Clustering step 1
+```{R}
+library(cluster)
+library(fpc)
+library(NbClust)
+library(tidyverse)
+
+cldata$Transit0 <- as.numeric(cldata$Transit0)
+cldata$Transit1 <- as.numeric(cldata$Transit1)
+cldata$Transit2 <- as.numeric(cldata$Transit2)
+
+Ward2.res <- NbClust(cldata, distance = "manhattan", min.nc = 2, max.nc = 10, method = "ward.D2", index = "all") #6:5
+Kmeans.res <- NbClust(cldata, distance = "manhattan", min.nc = 2, max.nc = 10, method = "kmeans", index = "all") #10:2
+Avg.res <- NbClust(cldata, distance = "manhattan", min.nc = 2, max.nc = 10, method = "average", index = "all") #7:4
+Med.res <- NbClust(cldata, distance = "manhattan", min.nc = 2, max.nc = 10, method = "median", index = "all") #10:8
+Crt.res <- NbClust(cldata, distance = "manhattan", min.nc = 2, max.nc = 10, method = "centroid", index = "all") #9:4
+Complete.res <- NbClust(cldata, distance = "manhattan", min.nc = 2, max.nc = 10, method = "complete", index = "all") #4:3
+Ward.res <- NbClust(cldata, distance = "manhattan", min.nc = 2, max.nc = 10, method = "ward.D", index = "all") #7:3
+Sig.res <- NbClust(cldata, distance = "manhattan", min.nc = 2, max.nc = 10, method = "single", index = "all") #6:4
+
+## combine the cluster label and the data
+cldata_la <- COVIDdata
+cldata_la$cluster <- Kmeans.res$Best.partition
+
+#cldata_la <- cldata_la %>% mutate(cluster = ifelse(cluster == 1, 1, 
+#                                                      ifelse(cluster == 2, 2, 
+#                                                             ifelse(cluster == 3, 3,
+#                                                                    ifelse(cluster == 4, 4,
+#                                                                           ifelse(cluster == 5, 5, 
+#                                                                                  ifelse(cluster == 6, 8, 6)))))))
+#cldata_la$cluster[cldata_la$cluster == 8] = 7
+
+cldata$cluster <- cldata_la$cluster
+
+##cldata %>% count(cldata$cluster)
+
+#filter(cldata_la, cluster == 7)
+
+```
+
+## Clustering step 2
+```{R}
+nontransit_riders <- filter(cldata_la, cluster == 2)
+transit_riders <- filter(cldata_la, cluster == 1)
+cldata2 <- transit_riders[,c("Transit0","Transit1","Transit2")]
+cldata2$Transit0 <- as.numeric(cldata2$Transit0)
+cldata2$Transit1 <- as.numeric(cldata2$Transit1)
+cldata2$Transit2 <- as.numeric(cldata2$Transit2)
+
+Ward2.res <- NbClust(cldata2, distance = "manhattan", min.nc = 2, max.nc = 8, method = "ward.D2", index = "all") #6:8
+Kmeans.res <- NbClust(cldata2, distance = "manhattan", min.nc = 2, max.nc = 8, method = "kmeans", index = "all") #6:8
+Avg.res <- NbClust(cldata2, distance = "manhattan", min.nc = 2, max.nc = 8, method = "average", index = "all") #6:8
+Med.res <- NbClust(cldata2, distance = "manhattan", min.nc = 2, max.nc = 8, method = "median", index = "all") #8:3
+Crt.res <- NbClust(cldata2, distance = "manhattan", min.nc = 2, max.nc = 8, method = "centroid", index = "all") #6:5
+Complete.res <- NbClust(cldata2, distance = "manhattan", min.nc = 2, max.nc = 8, method = "complete", index = "all") #10:7
+Ward.res <- NbClust(cldata2, distance = "manhattan", min.nc = 2, max.nc = 8, method = "ward.D", index = "all") #6:2
+Sig.res <- NbClust(cldata2, distance = "manhattan", min.nc = 2, max.nc = 8, method = "single", index = "all") #11:6
+
+## combine the cluster label and the data
+cldata2$cluster2 <- Sig.res$Best.partition
+
+#cldata_la <- cldata_la %>% mutate(cluster = ifelse(cluster == 1, 1, 
+#                                                      ifelse(cluster == 2, 2, 
+#                                                             ifelse(cluster == 3, 3,
+#                                                                    ifelse(cluster == 4, 4,
+#                                                                           ifelse(cluster == 5, 5, 
+#                                                                                  ifelse(cluster == 6, 8, 6)))))))
+#cldata_la$cluster[cldata_la$cluster == 8] = 7
+
+transit_riders$cluster2 <- Sig.res$Best.partition+1
+nontransit_riders$cluster2 <- 1
+
+##cldata %>% count(cldata$cluster)
+
+#filter(cldata_la, cluster == 7)
+
+```
+
+## Percentage 1
+```{R fig, fig.height = 2.5, fig.width = 1.5}
+# Create test data.
+cldata$cluster <- as.numeric(cldata$cluster)
+cldata.perc <- cldata %>% dplyr::count(cluster)
+names(cldata.perc) <- c("x", "freq")
+cldata.perc$x <- as.factor(cldata.perc$x)
+cldata.perc$freq <- as.numeric(cldata.perc$freq)
+ 
+# Compute percentages
+cldata.perc$fraction = cldata.perc$freq/sum(cldata.perc$freq)
+
+## plot bar chart
+p<-ggplot(data=cldata.perc, aes(x=x, y=fraction)) + theme_bw() + 
+  ##coord_flip() + 
+  ##scale_fill_brewer(palette="Spectral") + 
+  geom_bar(stat="identity", fill="white", color="black", width=0.4) + theme(legend.position = "none") + geom_text(aes(label=freq), vjust=-1, color="black", size=3.5) + ylim(0,0.92) + ylab("Percentage (%)") + xlab("Groups")
+p
+
+```
+
+## Percentage 2
+```{R fig, fig.height = 2.5, fig.width = 2}
+# Create test data.
+cldata2$cluster2 <- as.numeric(cldata2$cluster2)
+cldata2.perc <- cldata2 %>% dplyr::count(cluster2)
+names(cldata2.perc) <- c("x", "freq")
+cldata2.perc$x <- as.factor(cldata2.perc$x)
+cldata2.perc$freq <- as.numeric(cldata2.perc$freq)
+ 
+# Compute percentages
+cldata2.perc$fraction = cldata2.perc$freq/sum(cldata2.perc$freq)
+
+## plot bar chart
+p<-ggplot(data=cldata2.perc, aes(x=x, y=fraction)) + theme_bw() + 
+  ##coord_flip() + 
+  ##scale_fill_brewer(palette="Spectral") + 
+  geom_bar(stat="identity", fill="white", color="black") + theme(legend.position = "none") + geom_text(aes(label=freq), vjust=-1, color="black", size=3) + ylim(0,0.45) + ylab("Percentage (%)") + xlab("Groups")
+p
+
+```
+
+## plot the clustering validation 1
+```{R fig, fig.height = 2.5, fig.width = 3}
+ward2.n <-  c( 3, 3, 5, 6,NA,NA, 1, 1, 4)
+kmeans <- c(10, 3, 1, 1, 2, 1, 3, 1, 2)
+avg.n <-  c( 6, 1, 7,NA, 1, 1, 3,NA, 4)
+med.n <-  c( 5, 1, 1,NA, 3, 1,10, 2, 1)
+crt.n <-  c( 7,NA, 9,NA, 1, 1,NA, 4, 1)
+com.n <-  c( 2, 4, 3, 2,NA, 4, 3, 2, 3)
+ward.n <- c( 6, 7,NA, 3, 2,NA, 1, 3, 1)
+sig.n <-  c( 5, 2, 6, 1, 1, 4, 2, 1, 1)
+vld <- rbind.data.frame(ward2.n,kmeans, avg.n, med.n, crt.n, com.n, ward.n,sig.n)
+names(vld) <- c(2,3,4,5,6,7,8,9,10)
+rownames(vld) <- c("Ward.2","K-means", "Average linkage", "K-medians", "Centroid linkage", "Complete linkage", "Ward", "Single linkage")
+
+vld <- tibble::rownames_to_column(vld, "ClusterModels")
+
+vld_long <- gather(vld, Number, Votes, 2:10, factor_key=TRUE)
+
+## plot bar chart
+p<-ggplot(data=vld_long, aes(x=Number, y=Votes, fill=ClusterModels)) + theme_bw() + 
+  scale_fill_brewer(palette="Spectral") + 
+  geom_bar(stat="identity", position=position_dodge(), alpha = 0.8) + theme(legend.position = "bottom") + theme(legend.title = element_blank()) + 
+  ##geom_text(aes(label=Votes), vjust=1.2, color="black", size=3) + 
+  ylab("Number of votes") + xlab("Number of clusters")
+p
+
+```
+## plot the clustering validation 2
+```{R fig, fig.height = 2.5, fig.width = 2.5}
+ward2.n <-  c(NA, 6,NA, 2, 5,NA, 9)
+kmeans <-   c( 2, 6, 1, 4, 3,NA, 7)
+avg.n <-    c( 5, 5, 4, 6, 1,NA, 3)
+med.n <-    c( 1, 2, 2, 4, 3,NA, 9)
+crt.n <-    c( 5, 4, 7,NA, 2, 2, 4)
+com.n <-    c( 5, 2, 1, 3, 5, 3, 5)
+ward.n <-  c(NA, 8, 2,NA, 1, 5, 6)
+sig.n <-    c( 5, 2, 2, 9, 1, 1, 4)
+vld2 <- rbind.data.frame(ward2.n,kmeans, avg.n, med.n, crt.n, com.n, ward.n,sig.n)
+names(vld2) <- c(2,3,4,5,6,7,8)
+rownames(vld2) <- c("Ward.2","K-means", "Average linkage", "K-medians", "Centroid linkage", "Complete linkage", "Ward", "Single linkage")
+
+vld2 <- tibble::rownames_to_column(vld2, "ClusterModels")
+
+vld_long <- gather(vld2, Number, Votes, 2:8, factor_key=TRUE)
+
+## plot bar chart
+p<-ggplot(data=vld_long, aes(x=Number, y=Votes, fill=ClusterModels)) + theme_bw() + 
+  scale_fill_brewer(palette="Spectral") + 
+  geom_bar(stat="identity", position=position_dodge(), alpha = 0.8) + theme(legend.position = "bottom") + theme(legend.title = element_blank()) + 
+  ##geom_text(aes(label=Votes), vjust=1.2, color="black", size=3) + 
+  ylab("Number of votes") + xlab("Number of clusters")
+p
+
+```
+
+### plot results 1
+```{R fig, fig.height = 3, fig.width = 4.1}
+cldata_long <- gather(cldata, Time, Freq, Transit0:Transit2, factor_key=TRUE)
+cldata.sum <- summarySE(cldata_long, measurevar="Freq", groupvars=c("cluster", "Time"))
+
+group1 <- filter(cldata.sum, cluster == 1)
+p1 <- ggplot(group1, aes(x=Time, y=Freq)) + ylim(0,7) + xlab("") + ylab("") + 
+    geom_errorbar(aes(ymin=Freq-se, ymax=Freq+se), width=0.25, alpha = 0.9, colour = "red") + theme_bw() + theme(legend.position = "none") +
+    geom_point(shape=1, size = 2, alpha = 0.9)
+
+group2 <- filter(cldata.sum, cluster == 2)
+p2 <- ggplot(group2, aes(x=Time, y=Freq)) + ylim(0,7) + xlab("") + ylab("") + 
+    geom_errorbar(aes(ymin=Freq-se, ymax=Freq+se), width=0.25, alpha = 0.9, colour = "red") + theme_bw() + theme(legend.position = "none") +
+    geom_point(shape = 1, size = 2, alpha = 0.9)
+
+grid.arrange(p1, p2, nrow =3)
+```
+
+### plot results 2
+```{R fig, fig.height = 3, fig.width = 4.1}
+cldata_long0 <- gather(cldata, Time, Freq, Transit0:Transit2, factor_key=TRUE)
+cldata.sum0 <- summarySE(cldata_long0, measurevar="Freq", groupvars=c("cluster", "Time"))
+
+group6 <- filter(cldata.sum0, cluster == 2)
+p6 <- ggplot(group6, aes(x=Time, y=Freq)) + ylim(0,7) + xlab("") + ylab("") + 
+    geom_errorbar(aes(ymin=Freq-se, ymax=Freq+se), width=0.25, alpha = 0.9, colour = "red") + theme_bw() + theme(legend.position = "none") + 
+    geom_point(shape = 1, size = 2, alpha = 0.9)
+
+cldata_long <- gather(cldata2, Time, Freq, Transit0:Transit2, factor_key=TRUE)
+cldata.sum <- summarySE(cldata_long, measurevar="Freq", groupvars=c("cluster2", "Time"))
+
+group1 <- filter(cldata.sum, cluster2 == 1)
+p1 <- ggplot(group1, aes(x=Time, y=Freq)) + ylim(0,7) + xlab("") + ylab("") + 
+    geom_errorbar(aes(ymin=Freq-se, ymax=Freq+se), width=0.25, alpha = 0.9, colour = "red") + theme_bw() + theme(legend.position = "none") +
+    geom_point(shape=1, size = 2, alpha = 0.9)
+
+group2 <- filter(cldata.sum, cluster2 == 2)
+p2 <- ggplot(group2, aes(x=Time, y=Freq)) + ylim(0,7) + xlab("") + ylab("") + 
+    geom_errorbar(aes(ymin=Freq-se, ymax=Freq+se), width=0.25, alpha = 0.9, colour = "red") + theme_bw() + theme(legend.position = "none") +
+    geom_point(shape = 1, size = 2, alpha = 0.9)
+
+group3 <- filter(cldata.sum, cluster2 == 3)
+p3 <- ggplot(group3, aes(x=Time, y=Freq)) + ylim(0,7) + xlab("") + ylab("") + 
+    geom_errorbar(aes(ymin=Freq-se, ymax=Freq+se), width=0.25, alpha = 0.9, colour = "red") + theme_bw() + theme(legend.position = "none") +
+    geom_point(shape = 1, size = 2, alpha = 0.9)
+
+group4 <- filter(cldata.sum, cluster2 == 4)
+p4 <- ggplot(group4, aes(x=Time, y=Freq)) + ylim(0,7) + xlab("") + ylab("") + 
+    geom_errorbar(aes(ymin=Freq-se, ymax=Freq+se), width=0.25, alpha = 0.9, colour = "red") + theme_bw() + theme(legend.position = "none") +
+    geom_point(shape = 1, size = 2, alpha = 0.9)
+
+group5 <- filter(cldata.sum, cluster2 == 5)
+p5 <- ggplot(group5, aes(x=Time, y=Freq)) + ylim(0,7) + xlab("") + ylab("") + 
+    geom_errorbar(aes(ymin=Freq-se, ymax=Freq+se), width=0.25, alpha = 0.9, colour = "red") + theme_bw() + theme(legend.position = "none") +
+    geom_point(shape = 1, size = 2, alpha = 0.9)
+
+#group6 <- filter(cldata.sum, cluster2 == 6)
+#p6 <- ggplot(group6, aes(x=Time, y=Freq)) + ylim(0,7) + xlab("") + ylab("") + 
+#    geom_errorbar(aes(ymin=Freq-se, ymax=Freq+se), width=0.25, alpha = 0.9, colour = "red") + theme_bw() + theme(legend.position = "none") +
+#    geom_point(shape = 1, size = 2, alpha = 0.9)
+
+##group7 <- filter(cldata.sum, cluster2 == 7)
+##p7 <- ggplot(group7, aes(x=Time, y=Freq)) + ylim(0,7) + xlab("") + ylab("") + 
+##    geom_errorbar(aes(ymin=Freq-se, ymax=Freq+se), width=0.25, alpha = 0.9, colour = "red") + theme_bw() + theme(legend.position = "none") +
+##    geom_point(shape = 1, size = 2, alpha = 0.9)
+
+grid.arrange(p6, p1, p2, p3, p4, p5, nrow =3)
+```
+
+## put two datasets together
+```{R}
+cldata_la <- rbind(nontransit_riders, transit_riders)
+cldata_la$cluster <- cldata_la$cluster2
+view(cldata_la)
+```
+
+## only select inert transit riders: group 3
+```{R}
+Rebounding1 <- filter(cldata_la, cluster == 2)
+InertRiders <- filter(cldata_la, cluster == 3)
+Rebounding2 <- filter(cldata_la, cluster == 4)
+```
+
+## Inert transit riders trip rates
+```{R fig, fig.height = 1.3, fig.width = 3}
+TR_before <- as.numeric(InertRiders$Transit0) + as.numeric(InertRiders$Drivealone0) + as.numeric(InertRiders$Carpool0) + as.numeric(InertRiders$SoloRidehail0) + as.numeric(InertRiders$SharedRidehail0) + as.numeric(InertRiders$`SharedBike/Scooter0`) + as.numeric(InertRiders$`PrivateBike/Scooter0`) + as.numeric(InertRiders$Walk0)
+
+TR_during <- as.numeric(InertRiders$Transit1) + as.numeric(InertRiders$Drivealone1) + as.numeric(InertRiders$Carpool1) + as.numeric(InertRiders$SoloRidehail1) + as.numeric(InertRiders$SharedRidehail1) + as.numeric(InertRiders$`SharedBike/Scooter1`) + as.numeric(InertRiders$`PrivateBike/Scooter1`) + as.numeric(InertRiders$Walk1)
+
+TR_after <- as.numeric(InertRiders$Transit2) + as.numeric(InertRiders$Drivealone2) + as.numeric(InertRiders$Carpool2) + as.numeric(InertRiders$SoloRidehail2) + as.numeric(InertRiders$SharedRidehail2) + as.numeric(InertRiders$`SharedBike/Scooter2`) + as.numeric(InertRiders$`PrivateBike/Scooter2`) + as.numeric(InertRiders$Walk2)
+
+TR <- as.data.frame(cbind(TR_before, TR_during, TR_after))
+names(TR) <- c("TR_before", "TR_during", "TR_after")
+
+TR_long <- gather(TR, Time, Freq, TR_before:TR_after, factor_key=TRUE)
+TR.sum <- summarySE(TR_long, measurevar="Freq", groupvars=c("Time"))
+
+p1 <- ggplot(TR.sum, aes(x=Time, y=Freq)) + xlab("") + ylab("") + 
+    geom_errorbar(aes(ymin=Freq-se, ymax=Freq+se), width=0.25, alpha = 0.9, colour = "red") + theme_bw() + theme(legend.position = "none") +
+    geom_point(shape=1, size = 2, alpha = 0.9)
+
+p1
+
+## group difference
+TR_long.sub <- filter(TR_long, Time %in% c("TR_before", "TR_after"))
+TR_long.F <- anova(lm(Freq~as.factor(Time), data = TR_long.sub))
+TR_long.F
+```
+
+## Transit
+```{R}
+diff_transit <- mean(as.numeric(InertRiders$Transit2))-mean(as.numeric(InertRiders$Transit0))
+diff_transit
+```
+
+## Work from home
+```{R}
+diff_wfh <- mean(as.numeric(InertRiders$`WFH frequency2`))-mean(as.numeric(InertRiders$`WFH frequency0`))
+diff_wfh
+```
+
+## Online shopping: grocery
+```{R}
+InertRiders <- InertRiders %>% mutate(`Online grocery shopping frequency0` = ifelse(`Online grocery shopping frequency0` == "Once a month or less", 0.125, 
+                                                    ifelse(`Online grocery shopping frequency0` == "A few times a month", 0.625, 
+                                                        ifelse(`Online grocery shopping frequency0` == "Everyday", 7, 
+                                                            ifelse(`Online grocery shopping frequency0` == "1-2 days a week", 1.5, 
+                                                                 ifelse(`Online grocery shopping frequency0` == "3-4 days a week", 3.5,
+                                                                    ifelse(`Online grocery shopping frequency0` == "Never", 0,"None")))))))
+
+InertRiders <- InertRiders %>% mutate(`Online grocery shopping frequency1` = ifelse(`Online grocery shopping frequency1` == "Once a month or less", 0.125, 
+                                                    ifelse(`Online grocery shopping frequency1` == "A few times a month", 0.625, 
+                                                        ifelse(`Online grocery shopping frequency1` == "Everyday", 7, 
+                                                            ifelse(`Online grocery shopping frequency1` == "1-2 days a week", 1.5, 
+                                                                 ifelse(`Online grocery shopping frequency1` == "3-4 days a week", 3.5,
+                                                                    ifelse(`Online grocery shopping frequency1` == "Never", 0,"None")))))))
+
+InertRiders <- InertRiders %>% mutate(`Online grocery shopping frequency2` = ifelse(`Online grocery shopping frequency2` == "Once a month or less", 0.125, 
+                                                    ifelse(`Online grocery shopping frequency2` == "A few times a month", 0.625, 
+                                                        ifelse(`Online grocery shopping frequency2` == "Everyday", 7, 
+                                                            ifelse(`Online grocery shopping frequency2` == "1-2 days a week", 1.5, 
+                                                                 ifelse(`Online grocery shopping frequency2` == "3-4 days a week", 3.5,
+                                                                    ifelse(`Online grocery shopping frequency2` == "Never", 0,"None")))))))
+
+
+
+diff_olgrocery <- mean(as.numeric(InertRiders$`Online grocery shopping frequency2`))-mean(as.numeric(InertRiders$`Online grocery shopping frequency0`))
+diff_olgrocery
+```
+
+## Online shopping: other purposes
+```{R}
+InertRiders <- InertRiders %>% mutate(`Online other-purpose shopping frequency0` = ifelse(`Online other-purpose shopping frequency0` == "Once a month or less", 0.125, 
+                                                    ifelse(`Online other-purpose shopping frequency0` == "A few times a month", 0.625, 
+                                                        ifelse(`Online other-purpose shopping frequency0` == "Everyday", 7, 
+                                                            ifelse(`Online other-purpose shopping frequency0` == "1-2 days a week", 1.5, 
+                                                                 ifelse(`Online other-purpose shopping frequency0` == "3-4 days a week", 3.5,
+                                                                    ifelse(`Online other-purpose shopping frequency0` == "Never", 0,"None")))))))
+
+InertRiders <- InertRiders %>% mutate(`Online other-purpose shopping frequency1` = ifelse(`Online other-purpose shopping frequency1` == "Once a month or less", 0.125, 
+                                                    ifelse(`Online other-purpose shopping frequency1` == "A few times a month", 0.625, 
+                                                        ifelse(`Online other-purpose shopping frequency1` == "Everyday", 7, 
+                                                            ifelse(`Online other-purpose shopping frequency1` == "1-2 days a week", 1.5, 
+                                                                 ifelse(`Online other-purpose shopping frequency1` == "3-4 days a week", 3.5,
+                                                                    ifelse(`Online other-purpose shopping frequency1` == "Never", 0,"None")))))))
+
+InertRiders <- InertRiders %>% mutate(`Online other-purpose shopping frequency2` = ifelse(`Online other-purpose shopping frequency2` == "Once a month or less", 0.125, 
+                                                    ifelse(`Online other-purpose shopping frequency2` == "A few times a month", 0.625, 
+                                                        ifelse(`Online other-purpose shopping frequency2` == "Everyday", 7, 
+                                                            ifelse(`Online other-purpose shopping frequency2` == "1-2 days a week", 1.5, 
+                                                                 ifelse(`Online other-purpose shopping frequency2` == "3-4 days a week", 3.5,
+                                                                    ifelse(`Online other-purpose shopping frequency2` == "Never", 0,"None")))))))
+
+
+
+diff_olother <- mean(as.numeric(InertRiders$`Online other-purpose shopping frequency2`))-mean(as.numeric(InertRiders$`Online other-purpose shopping frequency0`))
+diff_olother
+```
+
+## Online food delivery
+```{R}
+InertRiders <- InertRiders %>% mutate(`Online restaurant0` = ifelse(`Online restaurant0` == "Once a month or less", 0.125, 
+                                                    ifelse(`Online restaurant0` == "A few times a month", 0.625, 
+                                                        ifelse(`Online restaurant0` == "Everyday", 7, 
+                                                            ifelse(`Online restaurant0` == "1-2 days a week", 1.5, 
+                                                                 ifelse(`Online restaurant0` == "3-4 days a week", 3.5,
+                                                                    ifelse(`Online restaurant0` == "Never", 0,"None")))))))
+
+InertRiders <- InertRiders %>% mutate(`Online restaurant1` = ifelse(`Online restaurant1` == "Once a month or less", 0.125, 
+                                                    ifelse(`Online restaurant1` == "A few times a month", 0.625, 
+                                                        ifelse(`Online restaurant1` == "Everyday", 7, 
+                                                            ifelse(`Online restaurant1` == "1-2 days a week", 1.5, 
+                                                                 ifelse(`Online restaurant1` == "3-4 days a week", 3.5,
+                                                                    ifelse(`Online restaurant1` == "Never", 0,"None")))))))
+
+InertRiders <- InertRiders %>% mutate(`Online restaurant2` = ifelse(`Online restaurant2` == "Once a month or less", 0.125, 
+                                                    ifelse(`Online restaurant2` == "A few times a month", 0.625, 
+                                                        ifelse(`Online restaurant2` == "Everyday", 7, 
+                                                            ifelse(`Online restaurant2` == "1-2 days a week", 1.5, 
+                                                                 ifelse(`Online restaurant2` == "3-4 days a week", 3.5,
+                                                                    ifelse(`Online restaurant2` == "Never", 0,"None")))))))
+
+
+
+diff_olfood <- mean(as.numeric(InertRiders$`Online restaurant2`))-mean(as.numeric(InertRiders$`Online restaurant0`))
+diff_olfood
+```
+
+## Private cars
+```{R}
+diff_Drivealone <- mean(as.numeric(InertRiders$Drivealone2))-mean(as.numeric(InertRiders$Drivealone0))
+diff_Drivealone
+```
+
+## Carpool
+```{R}
+diff_Carpool <- mean(as.numeric(InertRiders$Carpool2))-mean(as.numeric(InertRiders$Carpool0))
+diff_Carpool
+```
+
+## Ride hailing: Solo
+```{R}
+diff_SoloRidehail <- mean(as.numeric(InertRiders$SoloRidehail2))-mean(as.numeric(InertRiders$SoloRidehail0))
+diff_SoloRidehail
+```
+
+## Ride hailing: Pooled
+```{R}
+diff_SharedRidehail <- mean(as.numeric(InertRiders$SharedRidehail2))-mean(as.numeric(InertRiders$SharedRidehail0))
+diff_SharedRidehail
+```
+
+## Private bikes
+```{R}
+diff_PrivateBike <- mean(as.numeric(InertRiders$`PrivateBike/Scooter2`))-mean(as.numeric(InertRiders$`PrivateBike/Scooter0`))
+diff_PrivateBike
+```
+
+## Shared bikes
+```{R}
+diff_SharedBike <- mean(as.numeric(InertRiders$`SharedBike/Scooter2`))-mean(as.numeric(InertRiders$`SharedBike/Scooter0`))
+diff_SharedBike
+```
+
+## Walking
+```{R}
+diff_Walk <- mean(as.numeric(InertRiders$Walk2))-mean(as.numeric(InertRiders$Walk0))
+diff_Walk
+```
+
+## Descriptive analysis
+## Gender
+```{R  fig, fig.height = 2, fig.width = 4}
+
+## Total
+GenderCountT <- cldata_la %>% dplyr::count(Gender)
+GenderCountT
+
+## Groups
+GenderCountG <- cldata_la %>% dplyr::count(Gender, cluster)
+GenderCountG <- spread(GenderCountG, cluster, n)
+GenderCountG
+
+## test the proportions
+Sum <- as.numeric(colSums(GenderCountG[,2:7]))
+GenderCountG.perc <- GenderCountG
+GenderCountG.perc <- data.frame(GenderCountG.perc[,-1], row.names=GenderCountG.perc[,1])
+names(GenderCountG.perc) <- c("Group 1", "Group 2", "Group 3", "Group 4", "Group 5", "Group 6")
+GenderCountG.perc <- data.frame(t(rbind(GenderCountG.perc, Sum)))
+
+## all 6 groups
+case.vector <- GenderCountG.perc[,"Female"]
+total.vector <- GenderCountG.perc[,"X4"]
+prop.test(case.vector, total.vector)
+
+## plot the gender distribution 
+GenderCountG.perc <- tibble::rownames_to_column(GenderCountG.perc, "cluster")
+GenderCountG.perc <- gather(GenderCountG.perc, Gender, freq, "Female":"Male", factor_key=TRUE)
+GenderCountG.perc$freq <- as.integer(GenderCountG.perc$freq)
+
+# Compute percentages
+GenderCountG.perc$fraction = GenderCountG.perc$freq/GenderCountG.perc[,2]
+
+## plot bar chart
+s1<-ggplot(data=GenderCountG.perc, aes(x=cluster, y=fraction, fill = Gender)) + theme_bw() + 
+  scale_fill_brewer(palette="Greys") + 
+  geom_bar(stat="identity", position="stack", alpha = 0.85) + theme(legend.position = "bottom") +
+  ylim(0,1) + 
+  ylab("Percentage (%)") + theme(axis.title.x=element_blank())
+s1
+```
+
+## Age
+```{R}
+## Total
+AgeCountT <- cldata_la %>% dplyr::count(Age)
+AgeCountT
+
+## Groups
+AgeCountG <- cldata_la %>% dplyr::count(Age, cluster)
+AgeCountG <- spread(AgeCountG, cluster, n)
+AgeCountG <- replace(AgeCountG,is.na(AgeCountG),0)
+AgeCountG
+
+## test the proportion
+Sum <- as.numeric(colSums(AgeCountG[,2:7]))
+AgeCountG.perc <- AgeCountG
+AgeCountG.perc <- data.frame(AgeCountG.perc[,-1], row.names=AgeCountG.perc[,1])
+names(AgeCountG.perc) <- c("Group 1", "Group 2", "Group 3", "Group 4", "Group 5", "Group 6")
+AgeCountG.perc <- data.frame(t(rbind(AgeCountG.perc, Sum)))
+AgeCountG.perc <- tibble::rownames_to_column(AgeCountG.perc, "cluster")
+names(AgeCountG.perc) <- c("cluster","18-39", "40-64", ">65", "Sum")
+
+## Group 2 and 3
+AgeCountG.perc <- filter(AgeCountG.perc, cluster %in% c("Group 2", "Group 3"))
+
+## Age 18-39
+case.vector <- AgeCountG.perc[,"18-39"]
+total.vector <- AgeCountG.perc[,"Sum"]
+prop.test(case.vector, total.vector)
+
+## Age 40-64
+case.vector <- AgeCountG.perc[,"40-64"]
+total.vector <- AgeCountG.perc[,"Sum"]
+prop.test(case.vector, total.vector)
+
+## Age >=65
+case.vector <- AgeCountG.perc[,">65"]
+total.vector <- AgeCountG.perc[,"Sum"]
+prop.test(case.vector, total.vector)
+
+## Fisher's exact test
+dat <- AgeCountG.perc[, c("18-39", "40-64", ">65")]
+fisher.test(dat)
+
+# Compute percentages
+AgeCountG.perc <- gather(AgeCountG.perc, Age, freq, "18-39":">65", factor_key=TRUE)
+AgeCountG.perc$freq <- as.integer(AgeCountG.perc$freq)
+AgeCountG.perc$fraction = AgeCountG.perc$freq/AgeCountG.perc[,2]
+
+## plot bar chart
+s2<-ggplot(data=AgeCountG.perc, aes(x=cluster, y=fraction, fill = Age)) + theme_bw() + 
+  scale_fill_brewer(palette="Greys") + 
+  geom_bar(stat="identity", position="stack", alpha = 0.85) + theme(legend.position = "bottom") +
+  ylim(0,1) + 
+  ylab("Percentage (%)") + theme(axis.title.x=element_blank())
+s2
+
+```
+
+## Income
+```{R fig, fig.height = 2, fig.width = 4}
+## Total
+IncomeCountT <- cldata_la %>% dplyr::count(Income)
+IncomeCountT
+
+## Groups
+IncomeCountG <- cldata_la %>% dplyr::count(Income, cluster)
+IncomeCountG <- spread(IncomeCountG, cluster, n)
+IncomeCountG <- replace(IncomeCountG,is.na(IncomeCountG),0)
+IncomeCountG
+
+## test the proportion
+Sum <- as.numeric(colSums(IncomeCountG[,2:7]))
+IncomeCountG.perc <- IncomeCountG
+IncomeCountG.perc <- data.frame(IncomeCountG.perc[,-1], row.names=IncomeCountG.perc[,1])
+names(IncomeCountG.perc) <- c("Group 1", "Group 2", "Group 3", "Group 4", "Group 5", "Group 6")
+IncomeCountG.perc <- data.frame(t(rbind(IncomeCountG.perc, Sum)))
+IncomeCountG.perc <- tibble::rownames_to_column(IncomeCountG.perc, "cluster")
+names(IncomeCountG.perc) <- c("cluster","<50", "50-99", ">=100", "Sum")
+
+## Group 2 and 3
+IncomeCountG.perc <- filter(IncomeCountG.perc, cluster %in% c("Group 2", "Group 3"))
+
+## income <50
+case.vector <- IncomeCountG.perc[,"<50"]
+total.vector <- IncomeCountG.perc[,"Sum"]
+prop.test(case.vector, total.vector)
+
+## income 50-99
+case.vector <- IncomeCountG.perc[,"50-99"]
+total.vector <- IncomeCountG.perc[,"Sum"]
+prop.test(case.vector, total.vector)
+
+## income >=100
+case.vector <- IncomeCountG.perc[,">=100"]
+total.vector <- IncomeCountG.perc[,"Sum"]
+prop.test(case.vector, total.vector)
+
+## Fisher's exact test
+dat <- IncomeCountG.perc[, c("<50", "50-99", ">=100")]
+fisher.test(dat)
+
+# Compute percentages
+IncomeCountG.perc <- gather(IncomeCountG.perc, Income, freq, "<50":">=100", factor_key=TRUE)
+IncomeCountG.perc$freq <- as.integer(IncomeCountG.perc$freq)
+IncomeCountG.perc$fraction =IncomeCountG.perc$freq/IncomeCountG.perc[,2]
+
+## plot bar chart
+s3<-ggplot(data=IncomeCountG.perc, aes(x=cluster, y=fraction, fill = Income)) + theme_bw() + 
+  scale_fill_brewer(palette="Greys") + 
+  geom_bar(stat="identity", position="stack", alpha = 0.85) + theme(legend.position = "bottom") +
+  ylim(0,1) + 
+  ylab("Percentage (%)") + theme(axis.title.x=element_blank()) + guides(fill=guide_legend(title="Income (in $1,000)"))
+s3
+```
+
+## Education
+```{R}
+## Total
+EducationCountT <- cldata_la %>% dplyr::count(Education)
+EducationCountT
+
+## Groups
+EducationCountG <- cldata_la %>% dplyr::count(Education, cluster)
+EducationCountG <- spread(EducationCountG, cluster, n)
+EducationCountG <- replace(EducationCountG,is.na(EducationCountG),0)
+EducationCountG <- filter(EducationCountG, Education %in% c("(Less than) High school", "College", "Graduate school"))
+
+
+## test the proportion
+Sum <- as.numeric(colSums(EducationCountG[,2:7]))
+EducationCountG.perc <- EducationCountG
+EducationCountG.perc <- data.frame(EducationCountG.perc[,-1], row.names=EducationCountG.perc[,1])
+names(EducationCountG.perc) <- c("Group 1", "Group 2", "Group 3", "Group 4", "Group 5", "Group 6")
+EducationCountG.perc <- data.frame(t(rbind(EducationCountG.perc, Sum)))
+EducationCountG.perc <- tibble::rownames_to_column(EducationCountG.perc, "cluster")
+names(EducationCountG.perc) <- c("cluster","(Less than) High school", "College", "Graduate school", "Sum")
+
+## Group 2 and 3
+EducationCountG.perc <- filter(EducationCountG.perc, cluster %in% c("Group 2", "Group 3"))
+
+## Education: (Less than) High school
+case.vector <- EducationCountG.perc[,"(Less than) High school"]
+total.vector <- EducationCountG.perc[,"Sum"]
+prop.test(case.vector, total.vector)
+
+## College
+case.vector <- EducationCountG.perc[,"College"]
+total.vector <- EducationCountG.perc[,"Sum"]
+prop.test(case.vector, total.vector)
+
+## Graduate school
+case.vector <- EducationCountG.perc[,"Graduate school"]
+total.vector <- EducationCountG.perc[,"Sum"]
+prop.test(case.vector, total.vector)
+
+# Compute percentages
+EducationCountG.perc <- gather(EducationCountG.perc, Education, freq, "(Less than) High school":"Graduate school", factor_key=TRUE)
+EducationCountG.perc$freq <- as.integer(EducationCountG.perc$freq)
+EducationCountG.perc$fraction =EducationCountG.perc$freq/EducationCountG.perc[,2]
+
+## plot bar chart
+s4<-ggplot(data=EducationCountG.perc, aes(x=cluster, y=fraction, fill = Education)) + theme_bw() + 
+  scale_fill_brewer(palette="Greys") + 
+  geom_bar(stat="identity", position="stack", alpha = 0.85) + theme(legend.position = "bottom") +
+  ylim(0,1) + 
+  ylab("Percentage (%)") + theme(axis.title.x=element_blank())+guides(fill=guide_legend(nrow=2,byrow=TRUE))
+s4
+```
+
+## Occupation
+```{R}
+## Total
+OccupationCountT <- cldata_la %>% dplyr::count(Occupation)
+OccupationCountT
+
+## Groups
+OccupationCountG <- cldata_la %>% dplyr::count(Occupation, cluster)
+OccupationCountG <- spread(OccupationCountG, cluster, n)
+OccupationCountG <- replace(OccupationCountG,is.na(OccupationCountG),0)
+OccupationCountG
+
+## test the proportion
+Sum <- as.numeric(colSums(OccupationCountG[,2:7]))
+OccupationCountG.perc <- OccupationCountG
+OccupationCountG.perc <- data.frame(OccupationCountG.perc[,-1], row.names=OccupationCountG.perc[,1])
+names(OccupationCountG.perc) <- c("Group 1", "Group 2", "Group 3", "Group 4", "Group 5", "Group 6")
+OccupationCountG.perc <- data.frame(t(rbind(OccupationCountG.perc, Sum)))
+OccupationCountG.perc <- tibble::rownames_to_column(OccupationCountG.perc, "cluster")
+names(OccupationCountG.perc) <- c("cluster","Essential workers", "Others", "Sum")
+
+## Group 2 and 3
+OccupationCountG.perc <- filter(OccupationCountG.perc, cluster %in% c("Group 2", "Group 3"))
+
+## Occupation: high risk
+case.vector <- OccupationCountG.perc[,"Essential workers"]
+total.vector <- OccupationCountG.perc[,"Sum"]
+prop.test(case.vector, total.vector)
+
+## Occupation: low risk
+case.vector <- OccupationCountG.perc[,"Others"]
+total.vector <- OccupationCountG.perc[,"Sum"]
+prop.test(case.vector, total.vector)
+
+## Fisher's exact test
+dat <- OccupationCountG.perc[, c("Essential workers","Others")]
+fisher.test(dat)
+
+# Compute percentages
+OccupationCountG.perc <- gather(OccupationCountG.perc, Occupation, freq, "High-risk":"Low-risk", factor_key=TRUE)
+OccupationCountG.perc$freq <- as.integer(OccupationCountG.perc$freq)
+OccupationCountG.perc$fraction = OccupationCountG.perc$freq/OccupationCountG.perc[,2]
+
+## plot bar chart
+s5<-ggplot(data=OccupationCountG.perc, aes(x=cluster, y=fraction, fill = Occupation)) + theme_bw() + 
+  scale_fill_brewer(palette="Greys") + 
+  geom_bar(stat="identity", position="stack", alpha = 0.85) + theme(legend.position = "bottom") +
+  ylim(0,1) + 
+  ylab("Percentage (%)") + theme(axis.title.x=element_blank())
+s5
+```
+
+## Race
+```{R  fig, fig.height = 2, fig.width = 4}
+## Total
+cldata_la <- cldata_la %>% mutate(Race = ifelse(Race == "White", "White", 
+                                                ifelse(Race == "African", "African",
+                                                  ifelse(Race == "Asian", "Asian", "Other"))))
+
+RaceCountT <- cldata_la %>% dplyr::count(Race)
+RaceCountT
+
+## Groups
+RaceCountG <- cldata_la %>% dplyr::count(Race, cluster)
+RaceCountG <- spread(RaceCountG, cluster, n)
+RaceCountG <- replace(RaceCountG,is.na(RaceCountG),0)
+RaceCountG 
+
+## test the proportions
+Sum <- as.numeric(colSums(RaceCountG[,2:7]))
+RaceCountG.perc <- RaceCountG
+RaceCountG.perc <- data.frame(RaceCountG.perc[,-1], row.names=RaceCountG.perc[,1])
+names(RaceCountG.perc) <- c("Group 1", "Group 2", "Group 3", "Group 4", "Group 5", "Group 6")
+RaceCountG.perc <- data.frame(t(rbind(RaceCountG.perc, Sum)))
+RaceCountG.perc <- tibble::rownames_to_column(RaceCountG.perc, "cluster")
+names(RaceCountG.perc) <- c("cluster","African","Asian", "Other", "White", "Sum")
+
+## Group 2 and 3
+RaceCountG.perc <- filter(RaceCountG.perc, cluster %in% c("Group 2", "Group 3"))
+
+## Race: White
+case.vector <- RaceCountG.perc[,"White"]
+total.vector <- RaceCountG.perc[,"Sum"]
+prop.test(case.vector, total.vector)
+
+## Race: African
+case.vector <- RaceCountG.perc[,"African"]
+total.vector <- RaceCountG.perc[,"Sum"]
+prop.test(case.vector, total.vector)
+
+## Race: Asian
+case.vector <- RaceCountG.perc[,"Asian"]
+total.vector <- RaceCountG.perc[,"Sum"]
+prop.test(case.vector, total.vector)
+
+## Race: Hispanic
+case.vector <- RaceCountG.perc[,"Hispanic"]
+total.vector <- RaceCountG.perc[,"Sum"]
+prop.test(case.vector, total.vector)
+
+## Race: Native
+case.vector <- RaceCountG.perc[,"Native"]
+total.vector <- RaceCountG.perc[,"Sum"]
+prop.test(case.vector, total.vector)
+
+## Race: other
+case.vector <- RaceCountG.perc[,c("Other")]
+total.vector <- RaceCountG.perc[,"Sum"]
+prop.test(case.vector, total.vector)
+
+## Fisher's exact test
+dat <- RaceCountG.perc[, c("African","Asian", "Other", "White", "Sum")]
+fisher.test(dat)
+
+# Compute percentages
+RaceCountG.perc <- gather(RaceCountG.perc, Race, freq, "African":"White", factor_key=TRUE)
+RaceCountG.perc$freq <- as.integer(RaceCountG.perc$freq)
+RaceCountG.perc$fraction = RaceCountG.perc$freq/RaceCountG.perc[,2]
+
+## plot bar chart
+s6<-ggplot(data=RaceCountG.perc, aes(x=cluster, y=fraction, fill = Race)) + theme_bw() + 
+  scale_fill_brewer(palette="Greys") + 
+  geom_bar(stat="identity", position="stack", alpha = 0.75) + theme(legend.position = "bottom") +
+  ylim(0,1) + 
+  ylab("Percentage (%)") + theme(axis.title.x=element_blank())+guides(fill=guide_legend(nrow=2,byrow=TRUE))
+s6
+```
+
+## Job
+```{R fig, fig.height = 2, fig.width = 4}
+## Total
+JobCountT <- cldata_la %>% dplyr::count(Job)
+JobCountT
+
+## Groups
+JobCountG <- cldata_la %>% dplyr::count(Job, cluster)
+JobCountG <- spread(JobCountG, cluster, n)
+JobCountG <- replace(JobCountG,is.na(JobCountG),0)
+JobCountG 
+
+## test the proportions
+Sum <- as.numeric(colSums(JobCountG[,2:7]))
+JobCountG.perc <- JobCountG
+JobCountG.perc <- data.frame(JobCountG.perc[,-1], row.names=JobCountG.perc[,1])
+names(JobCountG.perc) <- c("Group 1", "Group 2", "Group 3", "Group 4", "Group 5", "Group 6")
+JobCountG.perc <- data.frame(t(rbind(JobCountG.perc, Sum)))
+JobCountG.perc <- tibble::rownames_to_column(JobCountG.perc, "cluster")
+names(JobCountG.perc) <- c("cluster","Full time", "Part time", "Furloughed", "Retired", "Self-employed",  "Student", "Unemployed", "Sum")
+
+## Group 2 and 3
+JobCountG.perc <- filter(JobCountG.perc, cluster %in% c("Group 2", "Group 3"))
+
+## Fisher's exact test
+dat <- JobCountG.perc[, c("Full time", "Part time", "Furloughed", "Retired", "Self-employed",  "Student", "Unemployed", "Sum")]
+fisher.test(dat)
+
+## plot bar chart
+s7<-ggplot(data=JobCountG.perc, aes(x=cluster, y=fraction, fill = Job)) + theme_bw() + 
+  scale_fill_brewer(palette="Greys") + 
+  geom_bar(stat="identity", position="stack", alpha = 0.85) + theme(legend.position = "bottom") +
+  ylim(0,1) + 
+  ylab("Percentage (%)") + theme(axis.title.x=element_blank(), legend.text=element_text(size=6.5))+guides(fill=guide_legend(nrow=2,byrow=TRUE))
+s7
+```
+
+## household
+```{R}
+## Total
+ChilCountT <- cldata_la %>% dplyr::count(Children)
+ChilCountT
+
+## Groups
+ChilCountG <- cldata_la %>% dplyr::count(Children, cluster)
+ChilCountG <- spread(ChilCountG, cluster, n)
+ChilCountG <- replace(ChilCountG,is.na(ChilCountG),0)
+ChilCountG 
+
+## test the proportions
+Sum <- as.numeric(colSums(ChilCountG[,2:7]))
+ChilCountG.perc <- ChilCountG
+ChilCountG.perc <- data.frame(ChilCountG.perc[,-1], row.names=ChilCountG.perc[,1])
+names(ChilCountG.perc) <- c("Group 1", "Group 2", "Group 3", "Group 4", "Group 5", "Group 6")
+ChilCountG.perc <- data.frame(t(rbind(ChilCountG.perc, Sum)))
+ChilCountG.perc <- tibble::rownames_to_column(ChilCountG.perc, "cluster")
+names(ChilCountG.perc) <- c("cluster","Adults", "Children", "No children", "Teenager", "Sum")
+
+## Household: No children
+case.vector <- ChilCountG.perc[,"No children"]
+total.vector <- ChilCountG.perc[,"Sum"]
+prop.test(case.vector, total.vector)
+
+## Household: Children
+case.vector <- ChilCountG.perc[,"Children"]
+total.vector <- ChilCountG.perc[,"Sum"]
+prop.test(case.vector, total.vector)
+
+## Household:Teenager
+case.vector <- ChilCountG.perc[,"Teenager"]
+total.vector <- ChilCountG.perc[,"Sum"]
+prop.test(case.vector, total.vector)
+
+## Household: Adults
+case.vector <- ChilCountG.perc[,"Adults"]
+total.vector <- ChilCountG.perc[,"Sum"]
+prop.test(case.vector, total.vector)
+
+## Household: Group 1 No children & other groups
+sub_chil.perc <- filter(ChilCountG.perc, cluster!= "Group 1")
+case.vector <- sub_chil.perc[,"No children"]
+total.vector <- sub_chil.perc[,"Sum"]
+prop.test(case.vector, total.vector)
+
+# Compute percentages
+ChilCountG.perc <- gather(ChilCountG.perc, Children, freq, "Adults":"Teenager", factor_key=TRUE)
+ChilCountG.perc$freq <- as.integer(ChilCountG.perc$freq)
+ChilCountG.perc$fraction = ChilCountG.perc$freq/ChilCountG.perc[,2]
+
+## plot bar chart
+s8<-ggplot(data=ChilCountG.perc, aes(x=cluster, y=fraction, fill = Children)) + theme_bw() + 
+  scale_fill_brewer(palette="Greys") + 
+  geom_bar(stat="identity", position="stack", alpha = 0.85) + theme(legend.position = "bottom") +
+  ylim(0,1) + 
+  ylab("Percentage (%)")+ theme(axis.title.x=element_blank())+guides(fill=guide_legend(nrow=2,byrow=TRUE))
+s8
+```
+
+## partner
+```{R fig, fig.height = 2, fig.width = 4}
+## Total
+ParCountT <- cldata_la %>% dplyr::count(partner)
+ParCountT
+
+## Groups
+ParCountG <- cldata_la %>% dplyr::count(partner, cluster)
+ParCountG <- spread(ParCountG, cluster, n)
+ParCountG <- replace(ParCountG,is.na(ParCountG),0)
+ParCountG 
+
+## test the proportions
+Sum <- as.numeric(colSums(ParCountG[,2:7]))
+ParCountG.perc <- ParCountG
+ParCountG.perc <- data.frame(ParCountG.perc[,-1], row.names=ParCountG.perc[,1])
+names(ParCountG.perc) <- c("Group 1", "Group 2", "Group 3", "Group 4", "Group 5", "Group 6")
+ParCountG.perc <- data.frame(t(rbind(ParCountG.perc, Sum)))
+ParCountG.perc <- tibble::rownames_to_column(ParCountG.perc, "cluster")
+names(ParCountG.perc) <- c("cluster","No", "Yes", "Sum")
+
+## Household: With partner
+case.vector <- ParCountG.perc[,"Yes"]
+total.vector <- ParCountG.perc[,"Sum"]
+prop.test(case.vector, total.vector)
+
+## Household: Group 1 No children & other groups
+sub_Par.perc <- filter(ParCountG.perc, cluster!= "Group 1")
+case.vector <- sub_Par.perc[,"Yes"]
+total.vector <- sub_Par.perc[,"Sum"]
+prop.test(case.vector, total.vector)
+
+# Compute percentages
+ParCountG.perc <- gather(ParCountG.perc, partner, freq, "No":"Yes", factor_key=TRUE)
+ParCountG.perc$freq <- as.integer(ParCountG.perc$freq)
+ParCountG.perc$fraction = ParCountG.perc$freq/ParCountG.perc[,2]
+
+## plot bar chart
+s9<-ggplot(data=ParCountG.perc, aes(x=cluster, y=fraction, fill = partner)) + theme_bw() + 
+  scale_fill_brewer(palette="Greys") + 
+  geom_bar(stat="identity", position="stack", alpha = 0.85) + theme(legend.position = "bottom") +
+  ylim(0,1) + 
+  ylab("Percentage (%)") + theme(axis.title.x=element_blank())
+s9
+```
+
+## Home
+```{R  fig, fig.height = 2, fig.width = 4}
+location <- read.csv("location.csv", header = TRUE, sep = ",")
+location <- location[,c("ZIPCODE", "LOCALE")]
+names(location) <- c("Home", "Location")
+
+cldata_la$index <- 1:nrow(cldata_la)
+
+cldata_la <- merge(x = cldata_la, y = location, by = "Home", all.x=TRUE)
+
+cldata_la[cldata_la$Home == 98225,]$Location <- 1
+cldata_la[cldata_la$Home == 98229,]$Location <- 0
+cldata_la[cldata_la$Home == 98274,]$Location <- 0
+cldata_la[cldata_la$Home == 98353,]$Location <- 0
+cldata_la[cldata_la$Home == 98516,]$Location <- 0
+cldata_la[cldata_la$Home == 98533,]$Location <- 0
+
+## Total
+cldata_la_loc <- cldata_la[complete.cases(cldata_la[ , "Location"]),]
+LocCountT <- cldata_la_loc %>% dplyr::count(Location)
+LocCountT
+
+## Groups
+LocCountG <- cldata_la_loc %>% dplyr::count(Location, cluster)
+LocCountG <- spread(LocCountG, cluster, n)
+LocCountG 
+
+## test the proportions
+Sum <- as.numeric(colSums(LocCountG[,2:7]))
+LocCountG.perc <- LocCountG
+LocCountG.perc <- data.frame(LocCountG.perc[,-1], row.names=LocCountG.perc[,1])
+names(LocCountG.perc) <- c("Group 1", "Group 2", "Group 3", "Group 4", "Group 5", "Group 6")
+LocCountG.perc <- data.frame(t(rbind(LocCountG.perc, Sum)))
+LocCountG.perc <- tibble::rownames_to_column(LocCountG.perc, "cluster")
+names(LocCountG.perc) <- c("cluster","Suburban", "Urban", "Sum")
+
+## Group 2 and 3
+LocCountG.perc <- filter(LocCountG.perc, cluster %in% c("Group 2", "Group 3"))
+
+## Household: Urban
+case.vector <- LocCountG.perc[,"Urban"]
+total.vector <- LocCountG.perc[,"Sum"]
+prop.test(case.vector, total.vector)
+
+## Household: no Group 1 suburban & other groups
+sub_Loc.perc <- filter(LocCountG.perc, cluster!= "Group 1")
+case.vector <- sub_Loc.perc[,"Urban"]
+total.vector <- sub_Loc.perc[,"Sum"]
+prop.test(case.vector, total.vector)
+
+# Compute percentages
+LocCountG.perc <- gather(LocCountG.perc, Location, freq, "Suburban":"Urban", factor_key=TRUE)
+LocCountG.perc$freq <- as.integer(LocCountG.perc$freq)
+LocCountG.perc$fraction = LocCountG.perc$freq/LocCountG.perc[,2]
+LocCountG.perc
+
+## plot bar chart
+s10<-ggplot(data=LocCountG.perc, aes(x=cluster, y=fraction, fill = Location)) + theme_bw() + 
+  scale_fill_brewer(palette = "Greys") + 
+  geom_bar(stat="identity", position="stack", alpha = 0.85) + theme(legend.position = "bottom") +
+  ylim(0,1) + 
+  ylab("Percentage (%)") + theme(axis.title.x=element_blank())
+s10
+```
+
+## Attitude: Everyone should stay at home as much as possible
+```{R fig, fig.height = 2, fig.width = 3}
+## Total
+A1 <- cldata_la[,c("Attitude: Everyone should stay at home as much as possible","cluster")]
+A1 <- filter(A1, cluster %in% c(2,3))
+A1$`Attitude: Everyone should stay at home as much as possible` <- as.numeric(A1$`Attitude: Everyone should stay at home as much as possible`)
+A1T <- describe(A1)
+A1T
+
+## Groups
+A1G <- summarySE(A1, measurevar="Attitude: Everyone should stay at home as much as possible", groupvars=c("cluster"))
+A1G
+
+## ANOVA
+A1.F <- anova(lm(`Attitude: Everyone should stay at home as much as possible`~as.factor(cluster), data = A1))
+A1.F
+```
+
+## Attitude: I don't mind traveling on a crowded bus
+```{R}
+## Total
+A2 <- cldata_la[,c("Attitude: I don't mind traveling on a crowded bus","cluster")]
+A2 <- filter(A2, cluster %in% c(2,3))
+A2$`Attitude: I don't mind traveling on a crowded bus` <- as.numeric(A2$`Attitude: I don't mind traveling on a crowded bus`)
+A2$cluster <- factor(A2$cluster)
+
+A2C <- A2 %>% dplyr::count(cluster, `Attitude: I don't mind traveling on a crowded bus`)
+A2C
+
+## Wilcoxon rank sum test 
+wilcox.test(`Attitude: I don't mind traveling on a crowded bus`~cluster, data=A2) 
+```
+
+## Attitude: I use transportation that avoid contact with others
+```{R}
+## Total
+A3 <- cldata_la[,c("Attitude: I use transportation that avoid contact with others","cluster")]
+A3$`Attitude: I use transportation that avoid contact with others` <- as.numeric(A3$`Attitude: I use transportation that avoid contact with others`)
+A3 <- filter(A3, cluster %in% c(2,3))
+A3$cluster <- factor(A3$cluster)
+A3T <- describe(A3)
+A3T
+
+## Wilcoxon rank sum test 
+wilcox.test(`Attitude: I use transportation that avoid contact with others`~cluster, data=A3) 
+
+## Groups
+A3C <- A3 %>% dplyr::count(cluster, `Attitude: I use transportation that avoid contact with others`)
+A3C
+
+```
+
+## Attitude: I travel by bus if physical distancing are enforced
+```{R}
+## Total
+A4 <- cldata_la[,c("Attitude: I travel by bus if physical distancing are enforced","cluster")]
+A4 <- filter(A4, cluster %in% c(2,3))
+A4$`Attitude: I travel by bus if physical distancing are enforced` <- as.numeric(A4$`Attitude: I travel by bus if physical distancing are enforced`)
+
+## Wilcoxon rank sum test 
+wilcox.test(`Attitude: I travel by bus if physical distancing are enforced`~cluster, data=A4) 
+
+A4C <- A4 %>% dplyr::count(cluster, `Attitude: I travel by bus if physical distancing are enforced`)
+A4C
+```
+
+## Attitude: Traveling by bus poses a risk to my health
+```{R}
+## Total
+A5 <- cldata_la[,c("Attitude: Traveling by bus poses a risk to my health", "cluster")]
+A5 <- filter(A5, cluster %in% c(2,3))
+A5$`Attitude: Traveling by bus poses a risk to my health` <- as.numeric(A5$`Attitude: Traveling by bus poses a risk to my health`)
+A5T <- describe(A5)
+A5T
+
+## Wilcoxon rank sum test 
+wilcox.test(`Attitude: Traveling by bus poses a risk to my health`~cluster, data=A5) 
+
+A5C <- A5 %>% dplyr::count(cluster, `Attitude: Traveling by bus poses a risk to my health`)
+A5C
+```
+
+## Attitude: I miss my commute
+```{R}
+## Total
+A6 <- cldata_la[,c("Attitude: I miss my commute", "cluster")]
+A6$`Attitude: I miss my commute` <- as.numeric(A6$`Attitude: I miss my commute`)
+A6 <- filter(A6, cluster %in% c(2,3))
+A6T <- describe(A6)
+A6T
+
+## Groups
+A6G <- summarySE(A6, measurevar="Attitude: I miss my commute", groupvars=c("cluster"))
+A6G
+
+## ANOVA
+A6.F <- anova(lm(`Attitude: I miss my commute`~as.factor(cluster), data = A6))
+A6.F
+
+## Wilcoxon rank sum test 
+wilcox.test(`Attitude: I miss my commute`~cluster, data=A6) 
+```
+
+## plot the attitudes: bar plot
+```{R fig, fig.height = 2, fig.width = 4}
+A2$cluster <- as.factor(A2$cluster)
+A2 <- filter(A2, cluster %in% c(2,3))
+g2<-ggplot(A2, aes(x=cluster, y=`Attitude: I don't mind traveling on a crowded bus`)) + 
+    scale_fill_brewer(palette="Dark2") +
+  geom_boxplot(alpha = 0.5, fatten = NULL, outlier.size = 1) + theme_bw() + stat_summary(fun = mean, geom = "errorbar", aes(ymax = ..y.., ymin = ..y..),width = .75, color = "red", size = 1)
+
+A4$cluster <- as.factor(A4$cluster)
+A4 <- filter(A4, cluster %in% c(2,3))
+g4<-ggplot(A4, aes(x=cluster, y=`Attitude: I travel by bus if physical distancing are enforced`)) + 
+    scale_fill_brewer(palette="Dark2") +
+  geom_boxplot(alpha = 0.5, fatten = NULL, outlier.size = 1) + theme_bw() + stat_summary(fun = mean, geom = "errorbar", aes(ymax = ..y.., ymin = ..y..),width = .75, color = "red", size = 1)
+
+B5$cluster <- as.factor(B5$cluster)
+B5 <- filter(B5, cluster %in% c(2,3))
+g5<-ggplot(B5, aes(x=cluster, y=`Attitude: I perform better with co-worker in person`)) + 
+    scale_fill_brewer(palette="Dark2") +
+  geom_boxplot(alpha = 0.5, fatten = NULL, outlier.size = 1) + theme_bw() + stat_summary(fun = mean, geom = "errorbar", aes(ymax = ..y.., ymin = ..y..),width = .75, color = "red", size = 1)
+
+B6$cluster <- as.factor(B6$cluster)
+B6 <- filter(B6, cluster %in% c(2,3))
+g6<-ggplot(B6, aes(x=cluster, y=`Attitude: WFH makes me less disciplined`)) + 
+    scale_fill_brewer(palette="Dark2") +
+  geom_boxplot(alpha = 0.5, fatten = NULL, outlier.size = 1) + theme_bw() + stat_summary(fun = mean, geom = "errorbar", aes(ymax = ..y.., ymin = ..y..),width = .75, color = "red", size = 1)
+
+
+grid.arrange(g2, g4, g5, g6, nrow =2)
+
+```
+
+## travel modes
+## test drive alone
+```{R}
+drive.data <- cldata_la[,c("Drivealone0", "Drivealone2", "cluster")]
+drive.data.long <- gather(drive.data, Time, Freq, Drivealone0:Drivealone2, factor_key=TRUE)
+drive.data.long$Freq <- as.numeric(drive.data.long$Freq)
+
+## describe the data
+drive.data.long.summary <- summarySE(drive.data.long, measurevar="Freq", groupvars=c("Time"))
+drive.data.long.summary
+
+## cluster 3
+drive.data.long.g3 <- filter(drive.data.long, cluster == 3)
+drive.data.long.g3.F <- anova(lm(Freq~as.factor(Time), data = drive.data.long.g3))
+drive.data.long.g3.F
+
+## Wilcoxon rank sum test 
+wilcox.test(Freq~Time, data=drive.data.long.g3) 
+```
+
+## plot driving alone
+```{R fig, fig.height = 2.5, fig.width = 3}
+drive.data <- cldata_la[,c("Drivealone0", "Drivealone1", "Drivealone2", "cluster")]
+
+## Group 3
+drive.data3 <- filter(drive.data, cluster == 3)
+d3 <- as.data.frame(describe(drive.data3[,1:3]))
+d3$Time <- rownames(d3)
+drivep <- ggplot(d3, aes(x=Time, y=mean)) + ylim(0,7) + xlab("") + ylab("") + 
+    geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=.2, alpha = 0.9, colour = "red") + theme_bw() + theme(legend.position = "none") +
+    geom_point(shape=1, size = 2, alpha = 0.9)
+```
+
+## carpool
+## test carpool
+```{R}
+drive.data <- cldata_la[,c("Carpool0", "Carpool2", "cluster")]
+drive.data.long <- gather(drive.data, Time, Freq, Carpool0:Carpool2, factor_key=TRUE)
+drive.data.long$Freq <- as.numeric(drive.data.long$Freq)
+
+## describe the data
+drive.data.long.summary <- summarySE(drive.data.long, measurevar="Freq", groupvars=c("Time"))
+drive.data.long.summary
+
+## cluster 3: not
+drive.data.long.g3 <- filter(drive.data.long, cluster == 3)
+drive.data.long.g3.F <- anova(lm(Freq~as.factor(Time), data = drive.data.long.g3))
+drive.data.long.g3.F
+
+## Wilcoxon rank sum test 
+wilcox.test(Freq~Time, data=drive.data.long.g3)
+```
+
+## plot carpool
+```{R fig, fig.height = 2.5, fig.width = 3}
+drive.data <- cldata_la[,c("Carpool0", "Carpool1", "Carpool2", "cluster")]
+
+## Group 3
+drive.data3 <- filter(drive.data, cluster == 3)
+d3 <- as.data.frame(describe(drive.data3[,1:3]))
+d3$Time <- rownames(d3)
+carpoolp <- ggplot(d3, aes(x=Time, y=mean)) + ylim(0,7) + xlab("") + ylab("") + 
+    geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=.2, alpha = 0.9, colour = "red") + theme_bw() + theme(legend.position = "none") +
+    geom_point(shape=1, size = 2, alpha = 0.9)
+```
+
+## solo ride hailing
+## test solo ride hailing
+```{R}
+drive.data <- cldata_la[,c("SoloRidehail0", "SoloRidehail2", "cluster")]
+drive.data.long <- gather(drive.data, Time, Freq, SoloRidehail0:SoloRidehail2, factor_key=TRUE)
+drive.data.long$Freq <- as.numeric(drive.data.long$Freq)
+
+## describe the data
+drive.data.long.summary <- summarySE(drive.data.long, measurevar="Freq", groupvars=c("Time"))
+drive.data.long.summary
+
+## cluster 3: not
+drive.data.long.g3 <- filter(drive.data.long, cluster == 3)
+drive.data.long.g3.F <- anova(lm(Freq~as.factor(Time), data = drive.data.long.g3))
+drive.data.long.g3.F
+
+## Wilcoxon rank sum test 
+wilcox.test(Freq~Time, data=drive.data.long.g3)
+```
+
+## plot solo ride hailing
+```{R fig, fig.height = 2.5, fig.width = 3}
+drive.data <- cldata_la[,c("SoloRidehail0", "SoloRidehail1", "SoloRidehail2", "cluster")]
+
+## Group 3
+drive.data3 <- filter(drive.data, cluster == 3)
+d3 <- as.data.frame(describe(drive.data3[,1:3]))
+d3$Time <- rownames(d3)
+solop <- ggplot(d3, aes(x=Time, y=mean)) + ylim(0,7) + xlab("") + ylab("") + 
+    geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=.2, alpha = 0.9, colour = "red") + theme_bw() + theme(legend.position = "none") +
+    geom_point(shape=1, size = 2, alpha = 0.9)
+
+```
+
+## shared ride hailing
+## test shared ride hailing
+```{R}
+drive.data <- cldata_la[,c("SharedRidehail0", "SharedRidehail2", "cluster")]
+drive.data.long <- gather(drive.data, Time, Freq, SharedRidehail0:SharedRidehail2, factor_key=TRUE)
+drive.data.long$Freq <- as.numeric(drive.data.long$Freq)
+
+## describe the data
+drive.data.long.summary <- summarySE(drive.data.long, measurevar="Freq", groupvars=c("Time"))
+drive.data.long.summary
+
+## cluster 3: significant
+drive.data.long.g3 <- filter(drive.data.long, cluster == 3)
+drive.data.long.g3.F <- anova(lm(Freq~as.factor(Time), data = drive.data.long.g3))
+drive.data.long.g3.F
+
+## Wilcoxon rank sum test 
+wilcox.test(Freq~Time, data=drive.data.long.g3)
+```
+
+## plot shared ride hailing
+```{R fig, fig.height = 2.5, fig.width = 3}
+drive.data <- cldata_la[,c("SharedRidehail0", "SharedRidehail1", "SharedRidehail2", "cluster")]
+
+## Group 3
+drive.data3 <- filter(drive.data, cluster == 3)
+d3 <- as.data.frame(describe(drive.data3[,1:3]))
+d3$Time <- rownames(d3)
+sharedp <- ggplot(d3, aes(x=Time, y=mean)) + ylim(0,7) + xlab("") + ylab("") + 
+    geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=.2, alpha = 0.9, colour = "red") + theme_bw() + theme(legend.position = "none") +
+    geom_point(shape=1, size = 2, alpha = 0.9)
+```
+
+## private bikes
+## test private bikes
+```{R}
+drive.data <- cldata_la[,c("PrivateBike/Scooter0", "PrivateBike/Scooter2", "cluster")]
+drive.data.long <- gather(drive.data, Time, Freq, `PrivateBike/Scooter0`:`PrivateBike/Scooter2`, factor_key=TRUE)
+drive.data.long$Freq <- as.numeric(drive.data.long$Freq)
+
+## describe the data
+drive.data.long.summary <- summarySE(drive.data.long, measurevar="Freq", groupvars=c("Time"))
+drive.data.long.summary
+
+## cluster 3: not
+drive.data.long.g3 <- filter(drive.data.long, cluster == 3)
+drive.data.long.g3.F <- anova(lm(Freq~as.factor(Time), data = drive.data.long.g3))
+drive.data.long.g3.F
+
+## Wilcoxon rank sum test 
+wilcox.test(Freq~Time, data=drive.data.long.g3)
+```
+
+## plot private bikes
+```{R fig, fig.height = 2.5, fig.width = 3}
+drive.data <- cldata_la[,c("PrivateBike/Scooter0", "PrivateBike/Scooter1", "PrivateBike/Scooter2", "cluster")]
+
+## Group 3
+drive.data3 <- filter(drive.data, cluster == 3)
+d3 <- as.data.frame(describe(drive.data3[,1:3]))
+d3$Time <- rownames(d3)
+pbikep <- ggplot(d3, aes(x=Time, y=mean)) + ylim(0,7) + xlab("") + ylab("") + 
+    geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=.2, alpha = 0.9, colour = "red") + theme_bw() + theme(legend.position = "none") +
+    geom_point(shape=1, size = 2, alpha = 0.9)
+
+```
+
+
+## shared bikes
+## test shared bikes
+```{R}
+drive.data <- cldata_la[,c("SharedBike/Scooter0", "SharedBike/Scooter2", "cluster")]
+drive.data.long <- gather(drive.data, Time, Freq, `SharedBike/Scooter0`:`SharedBike/Scooter2`, factor_key=TRUE)
+drive.data.long$Freq <- as.numeric(drive.data.long$Freq)
+
+## describe the data
+drive.data.long.summary <- summarySE(drive.data.long, measurevar="Freq", groupvars=c("Time"))
+drive.data.long.summary
+
+## cluster 3: not
+drive.data.long.g3 <- filter(drive.data.long, cluster == 3)
+drive.data.long.g3.F <- anova(lm(Freq~as.factor(Time), data = drive.data.long.g3))
+drive.data.long.g3.F
+
+## Wilcoxon rank sum test 
+wilcox.test(Freq~Time, data=drive.data.long.g3)
+```
+
+## plot shared bikes
+```{R fig, fig.height = 2.5, fig.width = 3}
+drive.data <- cldata_la[,c("SharedBike/Scooter0", "SharedBike/Scooter1", "SharedBike/Scooter2", "cluster")]
+
+## Group 3
+drive.data3 <- filter(drive.data, cluster == 3)
+d3 <- as.data.frame(describe(drive.data3[,1:3]))
+d3$Time <- rownames(d3)
+sbikep <- ggplot(d3, aes(x=Time, y=mean)) + ylim(0,7) + xlab("") + ylab("") + 
+    geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=.2, alpha = 0.9, colour = "red") + theme_bw() + theme(legend.position = "none") +
+    geom_point(shape=1, size = 2, alpha = 0.9)
+```
+
+## walking
+## test walking
+```{R}
+drive.data <- cldata_la[,c("Walk0", "Walk2", "cluster")]
+drive.data.long <- gather(drive.data, Time, Freq, Walk0:Walk2, factor_key=TRUE)
+drive.data.long$Freq <- as.numeric(drive.data.long$Freq)
+
+## describe the data
+drive.data.long.summary <- summarySE(drive.data.long, measurevar="Freq", groupvars=c("Time"))
+drive.data.long.summary
+
+## cluster 3: not
+drive.data.long.g3 <- filter(drive.data.long, cluster == 3)
+drive.data.long.g3.F <- anova(lm(Freq~as.factor(Time), data = drive.data.long.g3))
+drive.data.long.g3.F
+
+## Wilcoxon rank sum test 
+wilcox.test(Freq~Time, data=drive.data.long.g3)
+```
+
+## plot walking
+```{R fig, fig.height = 2.5, fig.width = 3}
+drive.data <- cldata_la[,c("Walk0", "Walk1", "Walk2", "cluster")]
+
+## Group 3
+drive.data3 <- filter(drive.data, cluster == 3)
+d3 <- as.data.frame(describe(drive.data3[,1:3]))
+d3$Time <- rownames(d3)
+walkp <- ggplot(d3, aes(x=Time, y=mean)) + ylim(0,7) + xlab("") + ylab("") + 
+    geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=.2, alpha = 0.9, colour = "red") + theme_bw() + theme(legend.position = "none") +
+    geom_point(shape=1, size = 2, alpha = 0.9)
+```
+
+##plot travel modes
+```{R fig, fig.height = 3, fig.width = 4.1}
+grid.arrange(sbikep, carpoolp, solop, sharedp, pbikep, walkp, nrow =3)
+```
+
+## work from home
+## test work from home
+```{R}
+drive.data <- cldata_la[,c("WFH frequency0", "WFH frequency2", "cluster")]
+drive.data.long <- gather(drive.data, Time, Freq, `WFH frequency0`:`WFH frequency2`, factor_key=TRUE)
+drive.data.long$Freq <- as.numeric(drive.data.long$Freq)
+
+## describe the data
+drive.data.long.summary <- summarySE(drive.data.long, measurevar="Freq", groupvars=c("Time"))
+drive.data.long.summary
+
+drive.data <- cldata_la[,c("WFH frequency0", "WFH frequency1", "cluster")]
+drive.data.long <- gather(drive.data, Time, Freq, `WFH frequency0`:`WFH frequency1`, factor_key=TRUE)
+drive.data.long$Freq <- as.numeric(drive.data.long$Freq)
+
+## describe the data
+drive.data.long.summary <- summarySE(drive.data.long, measurevar="Freq", groupvars=c("Time"))
+drive.data.long.summary
+
+## cluster 3: significant
+drive.data.long.g3 <- filter(drive.data.long, cluster == 3)
+drive.data.long.g3.F <- anova(lm(Freq~as.factor(Time), data = drive.data.long.g3))
+drive.data.long.g3.F
+
+drive.data.long.g3.summary <- summarySE(drive.data.long.g3, measurevar="Freq", groupvars=c("Time"))
+drive.data.long.g3.summary
+
+## Wilcoxon rank sum test 
+wilcox.test(Freq~Time, data=drive.data.long.g3)
+```
+
+## plot work from home
+```{R}
+cldata_la <- cldata_la %>% mutate(`WFH frequency0` = ifelse(`WFH frequency0` == 0.125, 0.125, 
+                                                    ifelse(`WFH frequency0` == 0.625, 0.625, 
+                                                        ifelse(`WFH frequency0` == 7, 5, 
+                                                            ifelse(`WFH frequency0` == 1.5, 1.5, 
+                                                                 ifelse(`WFH frequency0` == 3.5, 3.5,
+                                                                    ifelse(`WFH frequency0` == 0, 0,"None")))))))
+
+cldata_la <- cldata_la %>% mutate(`WFH frequency1` = ifelse(`WFH frequency1` == 0.125, 0.125, 
+                                                    ifelse(`WFH frequency1` == 0.625, 0.625, 
+                                                        ifelse(`WFH frequency1` == 7, 5, 
+                                                            ifelse(`WFH frequency1` == 1.5, 1.5, 
+                                                                 ifelse(`WFH frequency1` == 3.5, 3.5,
+                                                                    ifelse(`WFH frequency1` == 0, 0,"None")))))))
+
+cldata_la <- cldata_la %>% mutate(`WFH frequency2` = ifelse(`WFH frequency2` == 0.125, 0.125, 
+                                                    ifelse(`WFH frequency2` == 0.625, 0.625, 
+                                                        ifelse(`WFH frequency2` == 7, 5, 
+                                                            ifelse(`WFH frequency2` == 1.5, 1.5, 
+                                                                 ifelse(`WFH frequency2` == 3.5, 3.5,
+                                                                    ifelse(`WFH frequency2` == 0, 0,"None")))))))
+
+drive.data <- cldata_la[,c("WFH frequency0", "WFH frequency1", "WFH frequency2", "cluster")]
+
+## Group 3
+drive.data3 <- filter(drive.data, cluster == 3)
+d3 <- as.data.frame(describe(drive.data3[,1:3]))
+d3$Time <- rownames(d3)
+wfhp <- ggplot(d3, aes(x=Time, y=mean)) + ylim(0,7) + xlab("") + ylab("") + 
+    geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=.2, alpha = 0.9, colour = "red") + theme_bw() + theme(legend.position = "none") +
+    geom_point(shape=1, size = 2, alpha = 0.9)
+```
+
+## test online shopping: grocery
+```{R}
+cldata_la <- cldata_la %>% mutate(`Online grocery shopping frequency0` = ifelse(`Online grocery shopping frequency0` == "Once a month or less", 0.125, 
+                                                    ifelse(`Online grocery shopping frequency0` == "A few times a month", 0.625, 
+                                                        ifelse(`Online grocery shopping frequency0` == "Everyday", 7, 
+                                                            ifelse(`Online grocery shopping frequency0` == "1-2 days a week", 1.5, 
+                                                                 ifelse(`Online grocery shopping frequency0` == "3-4 days a week", 3.5,
+                                                                    ifelse(`Online grocery shopping frequency0` == "Never", 0,"None")))))))
+
+cldata_la <- cldata_la %>% mutate(`Online grocery shopping frequency1` = ifelse(`Online grocery shopping frequency1` == "Once a month or less", 0.125, 
+                                                    ifelse(`Online grocery shopping frequency1` == "A few times a month", 0.625, 
+                                                        ifelse(`Online grocery shopping frequency1` == "Everyday", 7, 
+                                                            ifelse(`Online grocery shopping frequency1` == "1-2 days a week", 1.5, 
+                                                                 ifelse(`Online grocery shopping frequency1` == "3-4 days a week", 3.5,
+                                                                    ifelse(`Online grocery shopping frequency1` == "Never", 0,"None")))))))
+
+cldata_la <- cldata_la %>% mutate(`Online grocery shopping frequency2` = ifelse(`Online grocery shopping frequency2` == "Once a month or less", 0.125, 
+                                                    ifelse(`Online grocery shopping frequency2` == "A few times a month", 0.625, 
+                                                        ifelse(`Online grocery shopping frequency2` == "Everyday", 7, 
+                                                            ifelse(`Online grocery shopping frequency2` == "1-2 days a week", 1.5, 
+                                                                 ifelse(`Online grocery shopping frequency2` == "3-4 days a week", 3.5,
+                                                                    ifelse(`Online grocery shopping frequency2` == "Never", 0,"None")))))))
+
+drive.data <- cldata_la[,c("Online grocery shopping frequency0", "Online grocery shopping frequency2", "cluster")]
+drive.data.long <- gather(drive.data, Time, Freq, `Online grocery shopping frequency0`:`Online grocery shopping frequency2`, factor_key=TRUE)
+drive.data.long$Freq <- as.numeric(drive.data.long$Freq)
+
+## describe the data
+drive.data.long.summary <- summarySE(drive.data.long, measurevar="Freq", groupvars=c("Time"))
+drive.data.long.summary
+
+## cluster 3: significant
+drive.data.long.g3 <- filter(drive.data.long, cluster == 3)
+drive.data.long.g3.F <- anova(lm(Freq~as.factor(Time), data = drive.data.long.g3))
+drive.data.long.g3.F
+
+drive.data.long.summary <- summarySE(drive.data.long.g3, measurevar="Freq", groupvars=c("Time"))
+drive.data.long.summary
+
+## Wilcoxon rank sum test
+wilcox.test(Freq~Time, data=drive.data.long.g3)
+
+online_grocery_before <- filter(drive.data.long.g3, Time == "Online grocery shopping frequency0")
+online_grocery_after <- filter(drive.data.long.g3, Time == "Online grocery shopping frequency2")
+
+wilcox.test(online_grocery_before[,"Freq"], online_grocery_after[,"Freq"])
+```
+
+## plot online shopping: grocery
+```{R}
+drive.data <- cldata_la[,c("Online grocery shopping frequency0", "Online grocery shopping frequency1", "Online grocery shopping frequency2", "cluster")]
+
+## Group 3
+drive.data3 <- filter(drive.data, cluster == 3)
+d3 <- as.data.frame(describe(drive.data3[,1:3]))
+d3$Time <- rownames(d3)
+olgp <- ggplot(d3, aes(x=Time, y=mean)) + ylim(0,7) + xlab("") + ylab("") + 
+    geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=.2, alpha = 0.9, colour = "red") + theme_bw() + theme(legend.position = "none") +
+    geom_point(shape=1, size = 2, alpha = 0.9)
+```
+
+## test online shopping: other purposes
+```{R}
+cldata_la <- cldata_la %>% mutate(`Online other-purpose shopping frequency0` = ifelse(`Online other-purpose shopping frequency0` == "Once a month or less", 0.125, 
+                                                    ifelse(`Online other-purpose shopping frequency0` == "A few times a month", 0.625, 
+                                                        ifelse(`Online other-purpose shopping frequency0` == "Everyday", 7, 
+                                                            ifelse(`Online other-purpose shopping frequency0` == "1-2 days a week", 1.5, 
+                                                                 ifelse(`Online other-purpose shopping frequency0` == "3-4 days a week", 3.5,
+                                                                    ifelse(`Online other-purpose shopping frequency0` == "Never", 0,"None")))))))
+
+cldata_la <- cldata_la %>% mutate(`Online other-purpose shopping frequency1` = ifelse(`Online other-purpose shopping frequency1` == "Once a month or less", 0.125, 
+                                                    ifelse(`Online other-purpose shopping frequency1` == "A few times a month", 0.625, 
+                                                        ifelse(`Online other-purpose shopping frequency1` == "Everyday", 7, 
+                                                            ifelse(`Online other-purpose shopping frequency1` == "1-2 days a week", 1.5, 
+                                                                 ifelse(`Online other-purpose shopping frequency1` == "3-4 days a week", 3.5,
+                                                                    ifelse(`Online other-purpose shopping frequency1` == "Never", 0,"None")))))))
+
+cldata_la <- cldata_la %>% mutate(`Online other-purpose shopping frequency2` = ifelse(`Online other-purpose shopping frequency2` == "Once a month or less", 0.125, 
+                                                    ifelse(`Online other-purpose shopping frequency2` == "A few times a month", 0.625, 
+                                                        ifelse(`Online other-purpose shopping frequency2` == "Everyday", 7, 
+                                                            ifelse(`Online other-purpose shopping frequency2` == "1-2 days a week", 1.5, 
+                                                                 ifelse(`Online other-purpose shopping frequency2` == "3-4 days a week", 3.5,
+                                                                    ifelse(`Online other-purpose shopping frequency2` == "Never", 0,"None")))))))
+
+drive.data <- cldata_la[,c("Online other-purpose shopping frequency0", "Online other-purpose shopping frequency2", "cluster")]
+drive.data.long <- gather(drive.data, Time, Freq, `Online other-purpose shopping frequency0`:`Online other-purpose shopping frequency2`, factor_key=TRUE)
+drive.data.long$Freq <- as.numeric(drive.data.long$Freq)
+
+## describe the data
+drive.data.long.summary <- summarySE(drive.data.long, measurevar="Freq", groupvars=c("Time"))
+drive.data.long.summary
+
+## cluster 3: significant
+drive.data.long.g3 <- filter(drive.data.long, cluster == 3)
+drive.data.long.g3.F <- anova(lm(Freq~as.factor(Time), data = drive.data.long.g3))
+drive.data.long.g3.F
+
+## Wilcoxon rank sum test 
+wilcox.test(Freq~Time, data=drive.data.long.g3)
+```
+
+## plot online shopping: other purposes
+```{R}
+drive.data <- cldata_la[,c("Online other-purpose shopping frequency0", "Online other-purpose shopping frequency1", "Online other-purpose shopping frequency2", "cluster")]
+
+## Group 3
+drive.data3 <- filter(drive.data, cluster == 3)
+d3 <- as.data.frame(describe(drive.data3[,1:3]))
+d3$Time <- rownames(d3)
+olop <- ggplot(d3, aes(x=Time, y=mean)) + ylim(0,7) + xlab("") + ylab("") + 
+    geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=.2, alpha = 0.9, colour = "red") + theme_bw() + theme(legend.position = "none") +
+    geom_point(shape=1, size = 2, alpha = 0.9)
+```
+
+##test online food
+```{R}
+cldata_la <- cldata_la %>% mutate(`Online restaurant0` = ifelse(`Online restaurant0` == "Once a month or less", 0.125, 
+                                                    ifelse(`Online restaurant0` == "A few times a month", 0.625, 
+                                                        ifelse(`Online restaurant0` == "Everyday", 7, 
+                                                            ifelse(`Online restaurant0` == "1-2 days a week", 1.5, 
+                                                                 ifelse(`Online restaurant0` == "3-4 days a week", 3.5,
+                                                                    ifelse(`Online restaurant0` == "Never", 0,"None")))))))
+
+cldata_la <- cldata_la %>% mutate(`Online restaurant1` = ifelse(`Online restaurant1` == "Once a month or less", 0.125, 
+                                                    ifelse(`Online restaurant1` == "A few times a month", 0.625, 
+                                                        ifelse(`Online restaurant1` == "Everyday", 7, 
+                                                            ifelse(`Online restaurant1` == "1-2 days a week", 1.5, 
+                                                                 ifelse(`Online restaurant1` == "3-4 days a week", 3.5,
+                                                                    ifelse(`Online restaurant1` == "Never", 0,"None")))))))
+
+cldata_la <- cldata_la %>% mutate(`Online restaurant2` = ifelse(`Online restaurant2` == "Once a month or less", 0.125, 
+                                                    ifelse(`Online restaurant2` == "A few times a month", 0.625, 
+                                                        ifelse(`Online restaurant2` == "Everyday", 7, 
+                                                            ifelse(`Online restaurant2` == "1-2 days a week", 1.5, 
+                                                                 ifelse(`Online restaurant2` == "3-4 days a week", 3.5,
+                                                                    ifelse(`Online restaurant2` == "Never", 0,"None")))))))
+
+drive.data <- cldata_la[,c("Online restaurant0", "Online restaurant2", "cluster")]
+drive.data.long <- gather(drive.data, Time, Freq, `Online restaurant0`:`Online restaurant2`, factor_key=TRUE)
+drive.data.long$Freq <- as.numeric(drive.data.long$Freq)
+
+## describe the data
+drive.data.long.summary <- summarySE(drive.data.long, measurevar="Freq", groupvars=c("Time"))
+drive.data.long.summary
+
+## cluster 3: significant
+drive.data.long.g3 <- filter(drive.data.long, cluster == 3)
+drive.data.long.g3.F <- anova(lm(Freq~as.factor(Time), data = drive.data.long.g3))
+drive.data.long.g3.F
+
+drive.data.long.summary <- summarySE(drive.data.long.g3, measurevar="Freq", groupvars=c("Time"))
+drive.data.long.summary
+
+## Wilcoxon rank sum test 
+wilcox.test(Freq~Time, data=drive.data.long.g3)
+```
+
+## plot online food
+```{R}
+drive.data <- cldata_la[,c("Online restaurant0", "Online restaurant1", "Online restaurant2", "cluster")]
+
+## Group 3
+drive.data3 <- filter(drive.data, cluster == 3)
+d3 <- as.data.frame(describe(drive.data3[,1:3]))
+d3$Time <- rownames(d3)
+olrp <- ggplot(d3, aes(x=Time, y=mean)) + ylim(0,7) + xlab("") + ylab("") + 
+    geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=.2, alpha = 0.9, colour = "red") + theme_bw() + theme(legend.position = "none") +
+    geom_point(shape=1, size = 2, alpha = 0.9)
+```
+
+##plot ICT
+```{R fig, fig.height = 2.1, fig.width = 4.1}
+grid.arrange(wfhp, olrp, olgp, olop, nrow =2)
+```
+
+## Attitude: WFH increases family conflicts
+```{R fig, fig.height = 2, fig.width = 3}
+## Total
+B1 <- cldata_la[,c("Attitude: WFH increases family conflicts","cluster")]
+B1 <- filter(B1, cluster %in% c(2,3))
+B1$`Attitude: WFH increases family conflicts` <- as.numeric(B1$`Attitude: WFH increases family conflicts`)
+B1T <- describe(B1)
+B1T
+
+## Groups
+B1G <- summarySE(B1, measurevar="Attitude: WFH increases family conflicts", groupvars=c("cluster"))
+B1G
+
+## ANOVA
+B1.F <- anova(lm(`Attitude: WFH increases family conflicts`~as.factor(cluster), data = B1))
+B1.F
+
+unique(cldata_la$`Attitude: WFH increases family conflicts`)
+
+## Wilcoxon rank sum test 
+wilcox.test(`Attitude: WFH increases family conflicts`~cluster, data=B1) 
+```
+## work from home
+```{R}
+drive.data <- cldata_la[,c("WFH frequency0", "WFH frequency1", "WFH frequency2", "cluster")]
+drive.data.long <- gather(drive.data, Time, Freq, `WFH frequency0`:`WFH frequency2`, factor_key=TRUE)
+drive.data.long$Freq <- as.numeric(drive.data.long$Freq)
+
+drive.data.long.summary <- summarySE(drive.data.long, measurevar="Freq", groupvars=c("cluster","Time"))
+drive.data.long.summary
+
+filter(drive.data.long.summary, cluster == 1)
+filter(drive.data.long.summary, cluster == 2)
+filter(drive.data.long.summary, cluster == 3)
+filter(drive.data.long.summary, cluster == 4)
+filter(drive.data.long.summary, cluster == 5)
+filter(drive.data.long.summary, cluster == 6)
+```
+
+## Attitude: I can replace in-person work meetings with online meetings
+```{R fig, fig.height = 2, fig.width = 3}
+## Total
+B4 <- cldata_la[,c("Attitude: I can replace in-person work meetings with online meetings","cluster")]
+B4$`Attitude: I can replace in-person work meetings with online meetings` <- as.numeric(B4$`Attitude: I can replace in-person work meetings with online meetings`)
+B4T <- describe(B4)
+B4T
+
+## Groups
+B4G <- summarySE(B4, measurevar="Attitude: I can replace in-person work meetings with online meetings", groupvars=c("cluster"))
+B4G
+
+## ANOVA
+B4.F <- anova(lm(`Attitude: I can replace in-person work meetings with online meetings`~as.factor(cluster), data = B4))
+B4.F
+
+unique(cldata_la$`Attitude: I can replace in-person work meetings with online meetings`)
+```
+
+## Attitude: I perform better with co-worker in person
+```{R fig, fig.height = 2, fig.width = 3}
+## Total
+B5 <- cldata_la[,c("Attitude: I perform better with co-worker in person","cluster")]
+B5 <- filter(B5, cluster %in% c(2,3))
+B5$`Attitude: I perform better with co-worker in person` <- as.numeric(B5$`Attitude: I perform better with co-worker in person`)
+
+## Wilcoxon rank sum test 
+wilcox.test(`Attitude: I perform better with co-worker in person`~cluster, data=B5) 
+
+B5C <- B5 %>% dplyr::count(cluster, `Attitude: I perform better with co-worker in person`)
+B5C
+```
+
+## Attitude: WFH makes me less disciplined
+```{R fig, fig.height = 2, fig.width = 3}
+## Total
+B6 <- cldata_la[,c("Attitude: WFH makes me less disciplined","cluster")]
+B6 <- filter(B6, cluster %in% c(2,3))
+B6$`Attitude: WFH makes me less disciplined` <- as.numeric(B6$`Attitude: WFH makes me less disciplined`)
+
+## Wilcoxon rank sum test 
+wilcox.test(`Attitude: WFH makes me less disciplined`~cluster, data=B6) 
+
+B6C <- B6 %>% dplyr::count(cluster, `Attitude: WFH makes me less disciplined`)
+B6C
+```
+
+## Attitude: I enjoy social interactions with my colleagues
+```{R fig, fig.height = 2, fig.width = 3}
+## Total
+B7 <- cldata_la[,c("Attitude: I enjoy social interactions with my colleagues","cluster")]
+B7$`Attitude: I enjoy social interactions with my colleagues` <- as.numeric(B7$`Attitude: I enjoy social interactions with my colleagues`)
+B7T <- describe(B7)
+B7T
+
+## Groups
+B7G <- summarySE(B7, measurevar="Attitude: I enjoy social interactions with my colleagues", groupvars=c("cluster"))
+B7G
+
+## ANOVA
+B7.F <- anova(lm(`Attitude: I enjoy social interactions with my colleagues`~as.factor(cluster), data = B7))
+B7.F
+
+unique(cldata_la$`Attitude: I enjoy social interactions with my colleagues`)
+```
+
+## plot the attitudes: bar plot
+```{R fig, fig.height = 2, fig.width = 4}
+## plot bar chart
+A1$cluster <- as.factor(A1$cluster)
+g1<- ggplot(A1, aes(x=cluster, y=`Attitude: Everyone should stay at home as much as possible`)) + 
+    scale_fill_brewer(palette="Dark2") +
+  geom_boxplot(alpha = 0.5, fatten = NULL, outlier.size = 1) + theme_bw() + stat_summary(fun = mean, geom = "errorbar", aes(ymax = ..y.., ymin = ..y..),width = .75, color = "red", size = 1)
+g1
+
+## plot bar chart
+B1$cluster <- as.factor(B1$cluster)
+g3<- ggplot(B1, aes(x=cluster, y=`Attitude: WFH increases family conflicts`)) + 
+    scale_fill_brewer(palette="Dark2") +
+  geom_boxplot(alpha = 0.5, fatten = NULL, outlier.size = 1) + theme_bw() + stat_summary(fun = mean, geom = "errorbar", aes(ymax = ..y.., ymin = ..y..),width = .75, color = "red", size = 1)
+
+## plot bar chart
+B2$cluster <- as.factor(B2$cluster)
+g4<- ggplot(B2, aes(x=cluster, y=`Attitude: I miss my commute`)) + 
+    scale_fill_brewer(palette="Dark2") +
+  geom_boxplot(alpha = 0.5, fatten = NULL, outlier.size = 1) + theme_bw() + stat_summary(fun = mean, geom = "errorbar", aes(ymax = ..y.., ymin = ..y..),width = .75, color = "red", size = 1)
+
+## plot bar chart
+B4$cluster <- as.factor(B4$cluster)
+g5<- ggplot(B4, aes(x=cluster, y=`Attitude: I can replace in-person work meetings with online meetings`)) + 
+    scale_fill_brewer(palette="Dark2") +
+  geom_boxplot(alpha = 0.5, fatten = NULL, outlier.size = 1) + theme_bw() + stat_summary(fun = mean, geom = "errorbar", aes(ymax = ..y.., ymin = ..y..),width = .75, color = "red", size = 1)
+
+grid.arrange(g1, g3, g4, g5, nrow =2)
+
+```
+
+## In-store grocery shopping frequency
+## test in-store grocery shopping
+```{R}
+drive.data <- cldata_la[,c("In-store grocery shopping frequency0", "In-store grocery shopping frequency1", "In-store grocery shopping frequency2", "cluster")]
+drive.data.long <- gather(drive.data, Time, Freq, `In-store grocery shopping frequency0`:`In-store grocery shopping frequency2`, factor_key=TRUE)
+drive.data.long$Freq <- as.numeric(drive.data.long$Freq)
+
+## describe the data
+drive.data.long.summary <- summarySE(drive.data.long, measurevar="Freq", groupvars=c("Time"))
+drive.data.long.summary
+
+## cluster 1: significant different
+drive.data.long.g1 <- filter(drive.data.long, cluster == 1)
+drive.data.long.g1.F <- anova(lm(Freq~as.factor(Time), data = drive.data.long.g1))
+drive.data.long.g1.F
+
+## cluster 2: significant
+drive.data.long.g2 <- filter(drive.data.long, cluster == 2)
+drive.data.long.g2.F <- anova(lm(Freq~as.factor(Time), data = drive.data.long.g2))
+drive.data.long.g2.F
+
+## cluster 3: significant
+drive.data.long.g3 <- filter(drive.data.long, cluster == 3)
+drive.data.long.g3.F <- anova(lm(Freq~as.factor(Time), data = drive.data.long.g3))
+drive.data.long.g3.F
+
+## cluster 4: significant
+drive.data.long.g4 <- filter(drive.data.long, cluster == 4)
+drive.data.long.g4.F <- anova(lm(Freq~as.factor(Time), data = drive.data.long.g4))
+drive.data.long.g4.F
+## test before and after
+wfh.before <- filter(drive.data.long.g4, Time == "In-store grocery shopping frequency0")
+wfh.after <- filter(drive.data.long.g4, Time == "In-store grocery shopping frequency2")
+t.test(as.numeric(wfh.before$Freq), as.numeric(wfh.after$Freq))
+
+## cluster 5: not
+drive.data.long.g5 <- filter(drive.data.long, cluster == 5)
+drive.data.long.g5.F <- anova(lm(Freq~as.factor(Time), data = drive.data.long.g5))
+drive.data.long.g5.F
+
+## cluster 6: not 
+drive.data.long.g6 <- filter(drive.data.long, cluster == 6)
+drive.data.long.g6.F <- anova(lm(Freq~as.factor(Time), data = drive.data.long.g6))
+drive.data.long.g6.F
+```
+## Attitude: I prefer buying groceries online
+```{R fig, fig.height = 2, fig.width = 3}
+## Total
+A1 <- cldata_la[,c("Attitude: I prefer buying groceries online","cluster")]
+A1$`Attitude: I prefer buying groceries online` <- as.numeric(A1$`Attitude: I prefer buying groceries online`)
+A1T <- describe(A1)
+A1T
+
+## Groups
+A1G <- summarySE(A1, measurevar="Attitude: I prefer buying groceries online", groupvars=c("cluster"))
+A1G
+
+## ANOVA
+A1.F <- anova(lm(`Attitude: I prefer buying groceries online`~as.factor(cluster), data = A1))
+A1.F
+
+unique(cldata_la$`Attitude: I prefer buying groceries online`)
+```
+
+## In-person other-purpose shopping frequency
+## test In-person other-purpose shopping
+```{R}
+drive.data <- cldata_la[,c("In-person other-purpose shopping frequency0", "In-person other-purpose shopping frequency1", "In-person other-purpose shopping frequency2", "cluster")]
+drive.data.long <- gather(drive.data, Time, Freq, `In-person other-purpose shopping frequency0`:`In-person other-purpose shopping frequency2`, factor_key=TRUE)
+drive.data.long$Freq <- as.numeric(drive.data.long$Freq)
+
+## describe the data
+drive.data.long.summary <- summarySE(drive.data.long, measurevar="Freq", groupvars=c("Time"))
+drive.data.long.summary
+
+## cluster 1: significant different
+drive.data.long.g1 <- filter(drive.data.long, cluster == 1)
+drive.data.long.g1.F <- anova(lm(Freq~as.factor(Time), data = drive.data.long.g1))
+drive.data.long.g1.F
+
+## cluster 2: significant
+drive.data.long.g2 <- filter(drive.data.long, cluster == 2)
+drive.data.long.g2.F <- anova(lm(Freq~as.factor(Time), data = drive.data.long.g2))
+drive.data.long.g2.F
+
+## cluster 3: significant
+drive.data.long.g3 <- filter(drive.data.long, cluster == 3)
+drive.data.long.g3.F <- anova(lm(Freq~as.factor(Time), data = drive.data.long.g3))
+drive.data.long.g3.F
+
+## cluster 4: significant
+drive.data.long.g4 <- filter(drive.data.long, cluster == 4)
+drive.data.long.g4.F <- anova(lm(Freq~as.factor(Time), data = drive.data.long.g4))
+drive.data.long.g4.F
+
+## cluster 5: not
+drive.data.long.g5 <- filter(drive.data.long, cluster == 5)
+drive.data.long.g5.F <- anova(lm(Freq~as.factor(Time), data = drive.data.long.g5))
+drive.data.long.g5.F
+
+## cluster 6: significant
+drive.data.long.g6 <- filter(drive.data.long, cluster == 6)
+drive.data.long.g6.F <- anova(lm(Freq~as.factor(Time), data = drive.data.long.g6))
+drive.data.long.g6.F
+```
+
+## in-person other-purpose shopping
+```{R fig, fig.height = 2.5, fig.width = 3}
+drive.data <- cldata_la[,c("In-person other-purpose shopping frequency0", "In-person other-purpose shopping frequency1", "In-person other-purpose shopping frequency2", "cluster")]
+## Total
+d <- as.data.frame(describe(drive.data[,1:3]))
+d$Time <- rownames(d)
+p0 <- ggplot(d, aes(x=Time, y=mean)) + ylim(0,7) + xlab("") + ylab("") + 
+    geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=.2, alpha = 0.9, colour = "red") + theme_bw() + theme(legend.position = "none") +
+    geom_point(shape=1, size = 2, alpha = 0.9)
+p0
+
+## Groups
+## Group 1
+drive.data1 <- filter(drive.data, cluster == 1)
+d1 <- as.data.frame(describe(drive.data1[,1:3]))
+d1$Time <- rownames(d1)
+p1 <- ggplot(d1, aes(x=Time, y=mean)) + ylim(0,7) + xlab("") + ylab("") + 
+    geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=.2, alpha = 0.9, colour = "red") + theme_bw() + theme(legend.position = "none") +
+    geom_point(shape=1, size = 2, alpha = 0.9)
+
+## Group 2
+drive.data2 <- filter(drive.data, cluster == 2)
+d2 <- as.data.frame(describe(drive.data2[,1:3]))
+d2$Time <- rownames(d2)
+p2 <- ggplot(d2, aes(x=Time, y=mean)) + ylim(0,7) + xlab("") + ylab("") + 
+    geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=.2, alpha = 0.9, colour = "red") + theme_bw() + theme(legend.position = "none") +
+    geom_point(shape=1, size = 2, alpha = 0.9)
+
+## Group 3
+drive.data3 <- filter(drive.data, cluster == 3)
+d3 <- as.data.frame(describe(drive.data3[,1:3]))
+d3$Time <- rownames(d3)
+p3 <- ggplot(d3, aes(x=Time, y=mean)) + ylim(0,7) + xlab("") + ylab("") + 
+    geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=.2, alpha = 0.9, colour = "red") + theme_bw() + theme(legend.position = "none") +
+    geom_point(shape=1, size = 2, alpha = 0.9)
+
+## Group 4
+drive.data4 <- filter(drive.data, cluster == 4)
+d4 <- as.data.frame(describe(drive.data4[,1:3]))
+d4$Time <- rownames(d4)
+p4 <- ggplot(d4, aes(x=Time, y=mean)) + ylim(0,7) + xlab("") + ylab("") + 
+    geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=.2, alpha = 0.9, colour = "red") + theme_bw() + theme(legend.position = "none") +
+    geom_point(shape=1, size = 2, alpha = 0.9)
+
+## Group 5
+drive.data5 <- filter(drive.data, cluster == 5)
+d5 <- as.data.frame(describe(drive.data5[,1:3]))
+d5$Time <- rownames(d5)
+p5 <- ggplot(d5, aes(x=Time, y=mean)) + ylim(0,7) + xlab("") + ylab("") + 
+    geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=.2, alpha = 0.9, colour = "red") + theme_bw() + theme(legend.position = "none") +
+    geom_point(shape=1, size = 2, alpha = 0.9)
+
+## Group 7
+drive.data7 <- filter(drive.data, cluster == 6)
+d7 <- as.data.frame(describe(drive.data7[,1:3]))
+d7$Time <- rownames(d7)
+p7 <- ggplot(d7, aes(x=Time, y=mean)) + ylim(0,7) + xlab("") + ylab("") + 
+    geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=.2, alpha = 0.9, colour = "red") + theme_bw() + theme(legend.position = "none") +
+    geom_point(shape=1, size = 2, alpha = 0.9)
+
+grid.arrange(p1, p2, p3, p4, p5, p7, nrow =3)
+```
+## Attitude: Shopping online is convenient
+```{R fig, fig.height = 2, fig.width = 3}
+## Total
+C1 <- cldata_la[,c("Attitude: Shopping online is convenient", "cluster")]
+C1$`Attitude: Shopping online is convenient` <- as.numeric(C1$`Attitude: Shopping online is convenient`)
+C1T <- describe(C1)
+C1T
+
+## Groups
+C1G <- summarySE(C1, measurevar="Attitude: Shopping online is convenient", groupvars=c("cluster"))
+C1G
+
+## ANOVA
+C1.F <- anova(lm(`Attitude: Shopping online is convenient`~as.factor(cluster), data = C1))
+C1.F
+
+unique(cldata_la$`Attitude: Shopping online is convenient`)
+```
+
+## In-person restaurant
+## test In-person other-purpose shopping
+```{R}
+drive.data <- cldata_la[,c("In-person restaurant0", "In-person restaurant1", "In-person restaurant2", "cluster")]
+drive.data.long <- gather(drive.data, Time, Freq, `In-person restaurant0`:`In-person restaurant2`, factor_key=TRUE)
+drive.data.long$Freq <- as.numeric(drive.data.long$Freq)
+
+## describe the data
+drive.data.long.summary <- summarySE(drive.data.long, measurevar="Freq", groupvars=c("Time"))
+drive.data.long.summary
+
+## cluster 1: significant different
+drive.data.long.g1 <- filter(drive.data.long, cluster == 1)
+drive.data.long.g1.F <- anova(lm(Freq~as.factor(Time), data = drive.data.long.g1))
+drive.data.long.g1.F
+
+## cluster 2: significant
+drive.data.long.g2 <- filter(drive.data.long, cluster == 2)
+drive.data.long.g2.F <- anova(lm(Freq~as.factor(Time), data = drive.data.long.g2))
+drive.data.long.g2.F
+
+## cluster 3: significant
+drive.data.long.g3 <- filter(drive.data.long, cluster == 3)
+drive.data.long.g3.F <- anova(lm(Freq~as.factor(Time), data = drive.data.long.g3))
+drive.data.long.g3.F
+
+## cluster 4: significant
+drive.data.long.g4 <- filter(drive.data.long, cluster == 4)
+drive.data.long.g4.F <- anova(lm(Freq~as.factor(Time), data = drive.data.long.g4))
+drive.data.long.g4.F
+
+## cluster 5: significant
+drive.data.long.g5 <- filter(drive.data.long, cluster == 5)
+drive.data.long.g5.F <- anova(lm(Freq~as.factor(Time), data = drive.data.long.g5))
+drive.data.long.g5.F
+
+## cluster 6: not
+drive.data.long.g6 <- filter(drive.data.long, cluster == 6)
+drive.data.long.g6.F <- anova(lm(Freq~as.factor(Time), data = drive.data.long.g6))
+drive.data.long.g6.F
+```
+
+## Attitude: Eating in restaurants is fun
+```{R fig, fig.height = 2, fig.width = 3}
+## Total
+D1 <- cldata_la[,c("Attitude: Eating in restaurants is fun", "cluster")]
+D1$`Attitude: Eating in restaurants is fun` <- as.numeric(D1$`Attitude: Eating in restaurants is fun`)
+D1T <- describe(D1)
+D1T
+
+## Groups
+D1G <- summarySE(D1, measurevar="Attitude: Eating in restaurants is fun", groupvars=c("cluster"))
+D1G
+
+## ANOVA
+D1.F <- anova(lm(`Attitude: Eating in restaurants is fun`~as.factor(cluster), data = D1))
+D1.F
+
+unique(cldata_la$`Attitude: Eating in restaurants is fun`)
+```
+
+## plot in-person restaurant
+```{R fig, fig.height = 2.5, fig.width = 3}
+drive.data <- cldata_la[,c("In-person restaurant0", "In-person restaurant1", "In-person restaurant2", "cluster")]
+## Total
+d <- as.data.frame(describe(drive.data[,1:3]))
+d$Time <- rownames(d)
+p0 <- ggplot(d, aes(x=Time, y=mean)) + ylim(0,7) + xlab("") + ylab("") + 
+    geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=.2, alpha = 0.9, colour = "red") + theme_bw() + theme(legend.position = "none") +
+    geom_point(shape=1, size = 2, alpha = 0.9)
+p0
+
+## Groups
+## Group 1
+drive.data1 <- filter(drive.data, cluster == 1)
+d1 <- as.data.frame(describe(drive.data1[,1:3]))
+d1$Time <- rownames(d1)
+p1 <- ggplot(d1, aes(x=Time, y=mean)) + ylim(0,7) + xlab("") + ylab("") + 
+    geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=.2, alpha = 0.9, colour = "red") + theme_bw() + theme(legend.position = "none") +
+    geom_point(shape=1, size = 2, alpha = 0.9)
+
+## Group 2
+drive.data2 <- filter(drive.data, cluster == 2)
+d2 <- as.data.frame(describe(drive.data2[,1:3]))
+d2$Time <- rownames(d2)
+p2 <- ggplot(d2, aes(x=Time, y=mean)) + ylim(0,7) + xlab("") + ylab("") + 
+    geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=.2, alpha = 0.9, colour = "red") + theme_bw() + theme(legend.position = "none") +
+    geom_point(shape=1, size = 2, alpha = 0.9)
+
+## Group 3
+drive.data3 <- filter(drive.data, cluster == 3)
+d3 <- as.data.frame(describe(drive.data3[,1:3]))
+d3$Time <- rownames(d3)
+p3 <- ggplot(d3, aes(x=Time, y=mean)) + ylim(0,7) + xlab("") + ylab("") + 
+    geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=.2, alpha = 0.9, colour = "red") + theme_bw() + theme(legend.position = "none") +
+    geom_point(shape=1, size = 2, alpha = 0.9)
+
+## Group 4
+drive.data4 <- filter(drive.data, cluster == 4)
+d4 <- as.data.frame(describe(drive.data4[,1:3]))
+d4$Time <- rownames(d4)
+p4 <- ggplot(d4, aes(x=Time, y=mean)) + ylim(0,7) + xlab("") + ylab("") + 
+    geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=.2, alpha = 0.9, colour = "red") + theme_bw() + theme(legend.position = "none") +
+    geom_point(shape=1, size = 2, alpha = 0.9)
+
+## Group 5
+drive.data5 <- filter(drive.data, cluster == 5)
+d5 <- as.data.frame(describe(drive.data5[,1:3]))
+d5$Time <- rownames(d5)
+p5 <- ggplot(d5, aes(x=Time, y=mean)) + ylim(0,7) + xlab("") + ylab("") + 
+    geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=.2, alpha = 0.9, colour = "red") + theme_bw() + theme(legend.position = "none") +
+    geom_point(shape=1, size = 2, alpha = 0.9)
+
+## Group 7
+drive.data7 <- filter(drive.data, cluster == 6)
+d7 <- as.data.frame(describe(drive.data7[,1:3]))
+d7$Time <- rownames(d7)
+p7 <- ggplot(d7, aes(x=Time, y=mean)) + ylim(0,7) + xlab("") + ylab("") + 
+    geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=.2, alpha = 0.9, colour = "red") + theme_bw() + theme(legend.position = "none") +
+    geom_point(shape=1, size = 2, alpha = 0.9)
+
+grid.arrange(p1, p2, p3, p4, p5, p7, nrow =3)
+```
+
+## plot the attitudes: bar plot
+```{R fig, fig.height = 1, fig.width = 4}
+## plot bar chart
+C1$cluster <- as.factor(C1$cluster)
+g1<- ggplot(C1, aes(x=cluster, y=`Attitude: Shopping online is convenient`)) + 
+    scale_fill_brewer(palette="Dark2") +
+  geom_boxplot(alpha = 0.5, fatten = NULL, outlier.size = 1) + theme_bw() + stat_summary(fun = mean, geom = "errorbar", aes(ymax = ..y.., ymin = ..y..),width = .75, color = "red", size = 1)
+
+D1$cluster <- as.factor(D1$cluster)
+g2<-ggplot(D1, aes(x=cluster, y=`Attitude: Eating in restaurants is fun`)) + 
+    scale_fill_brewer(palette="Dark2") +
+  geom_boxplot(alpha = 0.5, fatten = NULL, outlier.size = 1) + theme_bw() + stat_summary(fun = mean, geom = "errorbar", aes(ymax = ..y.., ymin = ..y..),width = .75, color = "red", size = 1)
+
+grid.arrange(g1, g2, nrow =1)
+
+```
+
+## plot study area
+```{R}
+library(rgdal)
+my_spdf <- readOGR(
+  dsn= paste0(getwd(),"/edge_locale19_nces_WA/") , 
+  ##layer="TM_WORLD_BORDERS_SIMPL-0.3",
+  verbose=FALSE
+)
+
+head(my_spdf@data)
+length(my_spdf)
+
+## plot using basic R
+par(mar=c(0,0,0,0))
+plot(my_spdf, col="#f2f2f2", bg="skyblue", lwd=0.25, border=0 )
+
+## plot using ggplot2
+library(broom)
+library(maptools)
+if (!require(gpclib)) install.packages("gpclib", type="source")
+gpclibPermit()
+
+spdf_fortified <- tidy(my_spdf, region = "OBJECTID")
+
+# Plot it
+library(ggplot2)
+ggplot() +
+  geom_polygon(data = spdf_fortified, aes(x = long, y = lat, group = group), fill="#69b3a2", color="white") +
+  theme_void() 
+```
