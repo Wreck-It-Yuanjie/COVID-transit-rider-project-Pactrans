@@ -11,7 +11,7 @@ If you are interested in COVID impact on transit riders, this is the project for
 * Yuanjie (Tukey) Tu, PhD candidate, University of Washington, US
 * Andisheh Ranjbari, PhD, Penn State University, US
 * Parastoo Jabbari, PhD, University of Washington, US
-* Don MacKenzie, PhD, University of Washington
+* Don MacKenzie, PhD, University of Washington, US
 
 ## Acknowledgement
 The project was supported by Pactrans.
